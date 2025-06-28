@@ -1,5 +1,4 @@
 mod error;
-mod lexer;
 mod server;
 
 use clap::{Parser, Subcommand};

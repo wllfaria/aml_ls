@@ -1,0 +1,9 @@
+[package]
+name = "aml-parser"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+insta.workspace = true
+serde.workspace = true
+thiserror.workspace = true

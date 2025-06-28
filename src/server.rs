@@ -22,34 +22,17 @@ impl LanguageServer for Backend {
         })
     }
 
-    async fn initialized(&self, _: InitializedParams) {
-        println!("initialized!");
-        self.client
-            .log_message(MessageType::INFO, "initialized!")
-            .await;
-    }
+    async fn initialized(&self, _: InitializedParams) {}
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
 
-    async fn did_open(&self, _: DidOpenTextDocumentParams) {
-        self.client
-            .log_message(MessageType::INFO, "did_open!")
-            .await;
-    }
+    async fn did_open(&self, _: DidOpenTextDocumentParams) {}
 
-    async fn did_change(&self, _: DidChangeTextDocumentParams) {
-        self.client
-            .log_message(MessageType::INFO, "file changed!")
-            .await;
-    }
+    async fn did_change(&self, _: DidChangeTextDocumentParams) {}
 
-    async fn did_close(&self, _: DidCloseTextDocumentParams) {
-        self.client
-            .log_message(MessageType::INFO, "file closed!")
-            .await;
-    }
+    async fn did_close(&self, _: DidCloseTextDocumentParams) {}
 }
 
 pub async fn start() {

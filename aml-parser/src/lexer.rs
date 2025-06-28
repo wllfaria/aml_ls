@@ -2,9 +2,11 @@ use std::cmp::Ordering;
 use std::ops::{Range, RangeBounds};
 use std::str::FromStr;
 
+use serde::Serialize;
+
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Element {
     Text,
     Span,
@@ -50,7 +52,7 @@ impl FromStr for Element {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Keyword {
     For,
     In,
@@ -64,7 +66,7 @@ pub enum Keyword {
     As,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TokenKind {
     Element(Element),
     Keyword(Keyword),
@@ -81,7 +83,7 @@ impl IntoToken for TokenKind {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Serialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Location {
     pub start_byte: usize,
     pub end_byte: usize,
@@ -129,7 +131,7 @@ impl From<Range<usize>> for Location {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Token {
     pub kind: TokenKind,
     pub location: Location,
@@ -141,11 +143,28 @@ impl Token {
     }
 }
 
+pub trait TransposeRef<'a, T, E: std::error::Error> {
+    fn transpose(self) -> Result<Option<&'a T>, &'a E>;
+}
+
+impl<'lex> TransposeRef<'lex, Token, Error> for Option<&'lex Result<Token>> {
+    fn transpose(self) -> Result<Option<&'lex Token>, &'lex Error> {
+        match self {
+            Some(result) => match result {
+                Ok(token) => Ok(Some(token)),
+                Err(e) => Err(e),
+            },
+            None => Ok(None),
+        }
+    }
+}
+
 pub struct Lexer<'lex> {
     cursor: usize,
     slice: &'lex str,
     content: &'lex str,
     current_indent: usize,
+    peeked: Option<Result<Token, Error>>,
 }
 
 pub trait IntoToken {
@@ -159,7 +178,20 @@ impl<'lex> Lexer<'lex> {
             content,
             cursor: 0,
             current_indent: 0,
+            peeked: None,
         }
+    }
+
+    pub fn peek(&mut self) -> Option<&Result<Token, Error>> {
+        if self.peeked.is_none() {
+            self.peeked = self.next();
+        }
+
+        self.peeked.as_ref()
+    }
+
+    pub fn is_empty(&mut self) -> bool {
+        self.peek().is_none()
     }
 
     fn advance_by(&mut self, amount: usize) {
@@ -218,6 +250,10 @@ impl Iterator for Lexer<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            if let Some(peeked) = self.peeked.take() {
+                return Some(peeked);
+            }
+
             let mut chars = self.slice.chars().peekable();
             let curr = chars.next()?;
             let next = chars.peek();
@@ -271,8 +307,6 @@ vstack        // 0 spaces
 "#;
 
         let tokens = Lexer::new(template).map(|t| t.unwrap()).collect::<Vec<_>>();
-
-        println!("{tokens:#?}");
-        panic!();
+        insta::assert_yaml_snapshot!(tokens);
     }
 }

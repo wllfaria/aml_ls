@@ -1,0 +1,52 @@
+---
+source: aml-parser/src/lexer.rs
+expression: tokens
+---
+- kind: Newline
+  location:
+    start_byte: 0
+    end_byte: 1
+- kind:
+    Element: VStack
+  location:
+    start_byte: 1
+    end_byte: 7
+- kind: Indent
+  location:
+    start_byte: 28
+    end_byte: 28
+- kind:
+    Element: Text
+  location:
+    start_byte: 28
+    end_byte: 32
+- kind: String
+  location:
+    start_byte: 33
+    end_byte: 36
+- kind: Indent
+  location:
+    start_byte: 65
+    end_byte: 65
+- kind:
+    Element: Span
+  location:
+    start_byte: 65
+    end_byte: 69
+- kind: Dedent
+  location:
+    start_byte: 100
+    end_byte: 100
+- kind:
+    Element: Text
+  location:
+    start_byte: 100
+    end_byte: 104
+- kind: String
+  location:
+    start_byte: 105
+    end_byte: 109
+- kind: Dedent
+  location:
+    start_byte: 134
+    end_byte: 134

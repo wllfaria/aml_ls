@@ -1,0 +1,23 @@
+---
+source: aml-parser/src/parser.rs
+assertion_line: 198
+expression: ast
+---
+nodes:
+  - Text:
+      value:
+        String:
+          value:
+            start_byte: 5
+            end_byte: 11
+      children:
+        - Span:
+            value:
+              start_byte: 21
+              end_byte: 27
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

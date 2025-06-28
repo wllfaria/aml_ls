@@ -1,10 +1,29 @@
+[workspace]
+resolver = "2"
+members = ["aml-parser"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+aml-parser = { path = "aml-parser" }
+thiserror = "2.0.12"
+insta = { version = "1.43.1", features = ["yaml"] }
+serde = { version = "1.0.219", features = ["derive"] }
+
 [package]
 name = "aml_ls"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-clap = { version = "4.5.40", features = ["derive"] }
-thiserror = "2.0.12"
+aml-parser.workspace = true
+thiserror.workspace = true
 tokio = { version = "1.45.1", features = ["io-std", "macros", "rt", "rt-multi-thread"] }
+clap = { version = "4.5.40", features = ["derive"] }
 tower-lsp = "0.20.0"
+
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3
