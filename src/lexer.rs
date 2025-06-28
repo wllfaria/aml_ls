@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ops::{Range, RangeBounds};
 use std::str::FromStr;
 
@@ -50,10 +51,28 @@ impl FromStr for Element {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Keyword {
+    For,
+    In,
+    If,
+    Else,
+    Let,
+    Switch,
+    Case,
+    Default,
+    With,
+    As,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TokenKind {
     Element(Element),
+    Keyword(Keyword),
     Identifier,
     String,
+    Newline,
+    Indent,
+    Dedent,
 }
 
 impl IntoToken for TokenKind {
@@ -126,6 +145,7 @@ pub struct Lexer<'lex> {
     cursor: usize,
     slice: &'lex str,
     content: &'lex str,
+    current_indent: usize,
 }
 
 pub trait IntoToken {
@@ -138,6 +158,7 @@ impl<'lex> Lexer<'lex> {
             slice: content,
             content,
             cursor: 0,
+            current_indent: 0,
         }
     }
 
@@ -179,6 +200,17 @@ impl<'lex> Lexer<'lex> {
             Err(_) => self.make_token(TokenKind::Identifier, next_whitespace),
         }
     }
+
+    fn handle_indentation(&mut self, new_indent: usize) -> Option<Token> {
+        let current_indent = self.current_indent;
+        self.current_indent = new_indent;
+
+        match new_indent.cmp(&current_indent) {
+            Ordering::Greater => Some(TokenKind::Indent.into_token(self.cursor, self.cursor)),
+            Ordering::Less => Some(TokenKind::Dedent.into_token(self.cursor, self.cursor)),
+            Ordering::Equal => None,
+        }
+    }
 }
 
 impl Iterator for Lexer<'_> {
@@ -191,10 +223,31 @@ impl Iterator for Lexer<'_> {
             let next = chars.peek();
 
             break match (curr, next) {
+                ('\n', _) => {
+                    let start_byte = self.cursor;
+                    self.advance_by(1);
+
+                    let leading_spaces = self.slice.chars().take_while(|&c| c == ' ').count();
+                    self.advance_by(leading_spaces);
+
+                    let newline_token = TokenKind::Newline.into_token(start_byte, start_byte + 1);
+
+                    match self.handle_indentation(leading_spaces) {
+                        Some(indent_token) => Some(Ok(indent_token)),
+                        None => Some(Ok(newline_token)),
+                    }
+                }
                 (c, _) if c.is_whitespace() => {
                     self.advance_by(c.len_utf8());
                     continue;
                 }
+
+                ('/', Some('/')) => {
+                    let eol_location = self.slice.find('\n').unwrap_or(self.slice.len());
+                    self.advance_by(eol_location);
+                    continue;
+                }
+
                 ('"', _) => Some(Ok(self.lex_string())),
 
                 ('a'..='z' | 'A'..='Z' | '_', _) => Some(Ok(self.lex_identifier())),
@@ -211,9 +264,11 @@ mod tests {
     #[test]
     fn test_lexer() {
         let template = r#"
-vstack
-    text "lol"
-        "#;
+vstack        // 0 spaces
+ text "hi"    // 1 space → Indent
+   span       // 3 spaces → Indent
+ text "bye"   // 1 space → Dedent
+"#;
 
         let tokens = Lexer::new(template).map(|t| t.unwrap()).collect::<Vec<_>>();
 
