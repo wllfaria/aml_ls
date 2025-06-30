@@ -1,0 +1,17 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+List:
+  - Primitive:
+      Int: 1
+  - List:
+      - Primitive:
+          Int: 2
+      - Primitive:
+          Int: 3
+      - List:
+          - Primitive:
+              Int: 4
+          - Primitive:
+              Int: 5

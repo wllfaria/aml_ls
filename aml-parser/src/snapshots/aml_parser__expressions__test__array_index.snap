@@ -1,0 +1,18 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+ArrayIndex:
+  lhs:
+    ArrayIndex:
+      lhs:
+        Ident:
+          location:
+            start_byte: 0
+            end_byte: 5
+      index:
+        Primitive:
+          Int: 0
+  index:
+    Primitive:
+      Int: 1

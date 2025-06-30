@@ -14,6 +14,12 @@ expression: tokens
     end_byte: 7
   value: vstack
 - kind:
+    Indent: 1
+  location:
+    start_byte: 7
+    end_byte: 8
+  value: " "
+- kind:
     Operator: LBracket
   location:
     start_byte: 8
@@ -30,7 +36,15 @@ expression: tokens
     start_byte: 14
     end_byte: 15
   value: ":"
-- kind: Int
+- kind:
+    Indent: 1
+  location:
+    start_byte: 15
+    end_byte: 16
+  value: " "
+- kind:
+    Primitive:
+      Int: 10
   location:
     start_byte: 16
     end_byte: 18
@@ -41,6 +55,12 @@ expression: tokens
     start_byte: 18
     end_byte: 19
   value: ","
+- kind:
+    Indent: 1
+  location:
+    start_byte: 19
+    end_byte: 20
+  value: " "
 - kind: Identifier
   location:
     start_byte: 20
@@ -52,7 +72,15 @@ expression: tokens
     start_byte: 26
     end_byte: 27
   value: ":"
-- kind: Int
+- kind:
+    Indent: 1
+  location:
+    start_byte: 27
+    end_byte: 28
+  value: " "
+- kind:
+    Primitive:
+      Int: 3
   location:
     start_byte: 28
     end_byte: 29
@@ -63,17 +91,29 @@ expression: tokens
     start_byte: 29
     end_byte: 30
   value: "]"
-- kind: Indent
+- kind: Newline
   location:
-    start_byte: 35
+    start_byte: 30
+    end_byte: 31
+  value: "\n"
+- kind:
+    Indent: 4
+  location:
+    start_byte: 31
     end_byte: 35
-  value: ""
+  value: "    "
 - kind:
     Element: Text
   location:
     start_byte: 35
     end_byte: 39
   value: text
+- kind:
+    Indent: 1
+  location:
+    start_byte: 39
+    end_byte: 40
+  value: " "
 - kind:
     Operator: LBracket
   location:
@@ -91,6 +131,12 @@ expression: tokens
     start_byte: 51
     end_byte: 52
   value: ":"
+- kind:
+    Indent: 1
+  location:
+    start_byte: 52
+    end_byte: 53
+  value: " "
 - kind: String
   location:
     start_byte: 53
@@ -102,6 +148,12 @@ expression: tokens
     start_byte: 58
     end_byte: 59
   value: "]"
+- kind:
+    Indent: 1
+  location:
+    start_byte: 59
+    end_byte: 60
+  value: " "
 - kind: String
   location:
     start_byte: 60
@@ -113,11 +165,23 @@ expression: tokens
     end_byte: 72
   value: "\n"
 - kind:
+    Indent: 4
+  location:
+    start_byte: 72
+    end_byte: 76
+  value: "    "
+- kind:
     Element: Border
   location:
     start_byte: 76
     end_byte: 82
   value: border
+- kind:
+    Indent: 1
+  location:
+    start_byte: 82
+    end_byte: 83
+  value: " "
 - kind:
     Operator: LBracket
   location:
@@ -136,12 +200,20 @@ expression: tokens
     end_byte: 91
   value: ":"
 - kind:
+    Indent: 1
+  location:
+    start_byte: 91
+    end_byte: 92
+  value: " "
+- kind:
     Operator: Minus
   location:
     start_byte: 92
     end_byte: 93
   value: "-"
-- kind: Int
+- kind:
+    Primitive:
+      Int: 10
   location:
     start_byte: 93
     end_byte: 95
@@ -152,8 +224,8 @@ expression: tokens
     start_byte: 95
     end_byte: 96
   value: "]"
-- kind: Dedent
+- kind: Newline
   location:
-    start_byte: 97
+    start_byte: 96
     end_byte: 97
-  value: ""
+  value: "\n"

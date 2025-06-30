@@ -1,0 +1,24 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+Binary:
+  lhs:
+    Binary:
+      lhs:
+        Primitive:
+          Int: 1
+      rhs:
+        Primitive:
+          Int: 2
+      op: EqualEqual
+  rhs:
+    Binary:
+      lhs:
+        Primitive:
+          Int: 3
+      rhs:
+        Primitive:
+          Int: 4
+      op: EqualEqual
+  op: And

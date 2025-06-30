@@ -1,0 +1,18 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+Binary:
+  lhs:
+    Primitive:
+      Int: 5
+  rhs:
+    Binary:
+      lhs:
+        Primitive:
+          Int: 1
+      rhs:
+        Primitive:
+          Int: 2
+      op: Div
+  op: Minus

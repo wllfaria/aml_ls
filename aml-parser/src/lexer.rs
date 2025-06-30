@@ -1,275 +1,163 @@
-use std::cmp::Ordering;
-use std::ops::{Range, RangeBounds};
-use std::str::FromStr;
+use std::iter::Peekable;
+use std::str::CharIndices;
 
-use serde::Serialize;
-
-use crate::error::{Error, Result};
-
-#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Element {
-    Text,
-    Span,
-    Border,
-    Alignment,
-    VStack,
-    HStack,
-    ZStack,
-    Row,
-    Column,
-    Expand,
-    Position,
-    Spacer,
-    Overflow,
-    Padding,
-    Canvas,
-    Container,
-}
-
-impl FromStr for Element {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "text" => Ok(Self::Text),
-            "span" => Ok(Self::Span),
-            "border" => Ok(Self::Border),
-            "alignment" => Ok(Self::Alignment),
-            "vstack" => Ok(Self::VStack),
-            "hstack" => Ok(Self::HStack),
-            "zstack" => Ok(Self::ZStack),
-            "row" => Ok(Self::Row),
-            "column" => Ok(Self::Column),
-            "expand" => Ok(Self::Expand),
-            "position" => Ok(Self::Position),
-            "spacer" => Ok(Self::Spacer),
-            "overflow" => Ok(Self::Overflow),
-            "padding" => Ok(Self::Padding),
-            "canvas" => Ok(Self::Canvas),
-            "container" => Ok(Self::Container),
-            _ => Err("Nuh uh".into()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Keyword {
-    For,
-    In,
-    If,
-    Else,
-    Let,
-    Switch,
-    Case,
-    Default,
-    With,
-    As,
-}
-
-#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Operator {
-    LBracket,
-    RBracket,
-    Colon,
-    Comma,
-    Minus,
-}
-
-impl Operator {
-    pub fn into_token(self, cursor: usize) -> Token {
-        Token {
-            location: (cursor - 1..cursor).into(),
-            kind: TokenKind::Operator(self),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TokenKind {
-    Element(Element),
-    Keyword(Keyword),
-    Operator(Operator),
-    Int,
-    Float,
-    Identifier,
-    String,
-    Newline,
-    Indent,
-    Dedent,
-}
-
-impl IntoToken for TokenKind {
-    fn into_token(self, start_byte: usize, end_byte: usize) -> Token {
-        Token::new(self, (start_byte, end_byte).into())
-    }
-}
-
-#[derive(Debug, Default, Serialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Location {
-    pub start_byte: usize,
-    pub end_byte: usize,
-}
-
-impl Location {
-    pub fn new(start: usize, end: usize) -> Self {
-        Self {
-            start_byte: start,
-            end_byte: end,
-        }
-    }
-
-    pub fn to_range(&self) -> Range<usize> {
-        self.start_byte..self.end_byte
-    }
-}
-impl From<(usize, usize)> for Location {
-    fn from((start_byte, end_byte): (usize, usize)) -> Self {
-        Self {
-            start_byte,
-            end_byte,
-        }
-    }
-}
-
-impl From<Range<usize>> for Location {
-    fn from(range: Range<usize>) -> Self {
-        let start = match range.start_bound() {
-            std::ops::Bound::Included(start) => *start,
-            std::ops::Bound::Excluded(start) => *start,
-            std::ops::Bound::Unbounded => {
-                panic!("can only construct a location from bounded ranges")
-            }
-        };
-
-        let end = match range.end_bound() {
-            std::ops::Bound::Included(end) => *end,
-            std::ops::Bound::Excluded(end) => *end,
-            std::ops::Bound::Unbounded => {
-                panic!("can only construct a location from bounded ranges")
-            }
-        };
-
-        Location {
-            start_byte: start,
-            end_byte: end,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub location: Location,
-}
-
-impl Token {
-    pub fn new(kind: TokenKind, location: Location) -> Self {
-        Self { kind, location }
-    }
-}
-
-pub trait TransposeRef<'a, T, E: std::error::Error> {
-    fn transpose(self) -> Result<Option<&'a T>, &'a E>;
-}
-
-impl<'lex> TransposeRef<'lex, Token, Error> for Option<&'lex Result<Token>> {
-    fn transpose(self) -> Result<Option<&'lex Token>, &'lex Error> {
-        match self {
-            Some(result) => match result {
-                Ok(token) => Ok(Some(token)),
-                Err(e) => Err(e),
-            },
-            None => Ok(None),
-        }
-    }
-}
+use crate::error::Result;
+use crate::token::{Element, IntoToken, LexError, Operator, Primitive, Token, TokenKind};
 
 pub struct Lexer<'lex> {
-    cursor: usize,
-    slice: &'lex str,
+    chars: Peekable<CharIndices<'lex>>,
     content: &'lex str,
-    current_indent: usize,
-    peeked: Option<Result<Token, Error>>,
-}
-
-pub trait IntoToken {
-    fn into_token(self, start_byte: usize, end_byte: usize) -> Token;
 }
 
 impl<'lex> Lexer<'lex> {
     pub fn new(content: &'lex str) -> Self {
         Self {
-            slice: content,
+            chars: content.char_indices().peekable(),
             content,
-            cursor: 0,
-            current_indent: 0,
-            peeked: None,
         }
     }
 
-    pub fn peek(&mut self) -> Option<&Result<Token, Error>> {
-        if self.peeked.is_none() {
-            self.peeked = self.next();
+    fn next_token(&mut self) -> Result<Token> {
+        let (index, curr) = match self.chars.next() {
+            None => return self.eof(),
+            Some(curr) => curr,
+        };
+
+        let next = self.chars.peek().map(|(_, c)| *c);
+
+        match (curr, next) {
+            ('/', Some('/')) => {
+                self.chars.next(); // consume the second slash
+                loop {
+                    if let Some((_, '\n')) | None = self.chars.peek() {
+                        break;
+                    };
+                    self.chars.next();
+                }
+                self.next_token()
+            }
+            ('&', Some('&')) => {
+                let _ = self.chars.next();
+                Ok(Operator::And.into_token(index, index + 2))
+            }
+            ('|', Some('|')) => {
+                let _ = self.chars.next();
+                Ok(Operator::Or.into_token(index, index + 2))
+            }
+            ('=', Some('=')) => {
+                let _ = self.chars.next();
+                Ok(Operator::EqualEqual.into_token(index, index + 2))
+            }
+            ('!', Some('=')) => {
+                let _ = self.chars.next();
+                Ok(Operator::NotEqual.into_token(index, index + 2))
+            }
+            ('>', Some('=')) => {
+                let _ = self.chars.next();
+                Ok(Operator::GreaterThanOrEqual.into_token(index, index + 2))
+            }
+            ('<', Some('=')) => {
+                let _ = self.chars.next();
+                Ok(Operator::LessThanOrEqual.into_token(index, index + 2))
+            }
+            ('-', Some('>')) => {
+                let _ = self.chars.next();
+                Ok(Operator::Association.into_token(index, index + 2))
+            }
+
+            ('(', _) => Ok(Operator::LParen.into_token(index, index + 1)),
+            (')', _) => Ok(Operator::RParen.into_token(index, index + 1)),
+            ('[', _) => Ok(Operator::LBracket.into_token(index, index + 1)),
+            (']', _) => Ok(Operator::RBracket.into_token(index, index + 1)),
+            ('{', _) => Ok(Operator::LCurly.into_token(index, index + 1)),
+            ('}', _) => Ok(Operator::RCurly.into_token(index, index + 1)),
+            (':', _) => Ok(Operator::Colon.into_token(index, index + 1)),
+            (',', _) => Ok(Operator::Comma.into_token(index, index + 1)),
+            ('.', _) => Ok(Operator::Dot.into_token(index, index + 1)),
+            ('!', _) => Ok(Operator::Not.into_token(index, index + 1)),
+            ('+', _) => Ok(Operator::Plus.into_token(index, index + 1)),
+            ('-', _) => Ok(Operator::Minus.into_token(index, index + 1)),
+            ('*', _) => Ok(Operator::Mul.into_token(index, index + 1)),
+            ('/', _) => Ok(Operator::Div.into_token(index, index + 1)),
+            ('%', _) => Ok(Operator::Mod.into_token(index, index + 1)),
+            ('>', _) => Ok(Operator::GreaterThan.into_token(index, index + 1)),
+            ('<', _) => Ok(Operator::LessThan.into_token(index, index + 1)),
+            ('?', _) => Ok(Operator::Either.into_token(index, index + 1)),
+            ('=', _) => Ok(TokenKind::Equal.into_token(index, index + 1)),
+            ('\n', _) => Ok(TokenKind::Newline.into_token(index, index + 1)),
+            ('@', _) => Ok(TokenKind::Component.into_token(index, index + 1)),
+            ('$', _) => Ok(TokenKind::ComponentSlot.into_token(index, index + 1)),
+
+            ('a'..='z' | 'A'..='Z' | '_', _) => Ok(self.lex_identifier(index)),
+            ('0'..='9', _) => Ok(self.lex_number(index)),
+            ('"' | '\'', _) => Ok(self.lex_string(curr, index)),
+            _ if curr.is_whitespace() => Ok(self.lex_indent(index)),
+            ('#', Some('0'..='9' | 'a'..='f' | 'A'..='F')) => Ok(self.lex_hex_value(index)),
+            _ => self.eof(),
+        }
+    }
+
+    fn eof(&self) -> Result<Token> {
+        let location = self.content.len()..self.content.len();
+        Ok(Token(TokenKind::Eof, location.into()))
+    }
+
+    fn lex_identifier(&mut self, start_byte: usize) -> Token {
+        let mut end_byte = start_byte;
+        while let Some((e, 'a'..='z' | 'A'..='Z' | '_' | '|' | '0'..='9')) = self.chars.peek() {
+            end_byte = *e;
+            self.chars.next();
         }
 
-        self.peeked.as_ref()
+        let str = &self.content[start_byte..=end_byte];
+
+        let kind = match str {
+            "for" => TokenKind::For,
+            "in" => TokenKind::In,
+            "if" => TokenKind::If,
+            "else" => TokenKind::Else,
+            "true" => TokenKind::Primitive(Primitive::Bool(true)),
+            "false" => TokenKind::Primitive(Primitive::Bool(false)),
+            "let" => TokenKind::Decl,
+            "switch" => TokenKind::Switch,
+            "case" => TokenKind::Case,
+            "default" => TokenKind::Default,
+            "with" => TokenKind::With,
+            "as" => TokenKind::As,
+            "text" => TokenKind::Element(Element::Text),
+            "span" => TokenKind::Element(Element::Span),
+            "border" => TokenKind::Element(Element::Border),
+            "alignment" => TokenKind::Element(Element::Alignment),
+            "vstack" => TokenKind::Element(Element::VStack),
+            "hstack" => TokenKind::Element(Element::HStack),
+            "zstack" => TokenKind::Element(Element::ZStack),
+            "row" => TokenKind::Element(Element::Row),
+            "column" => TokenKind::Element(Element::Column),
+            "expand" => TokenKind::Element(Element::Expand),
+            "position" => TokenKind::Element(Element::Position),
+            "spacer" => TokenKind::Element(Element::Spacer),
+            "overflow" => TokenKind::Element(Element::Overflow),
+            "padding" => TokenKind::Element(Element::Padding),
+            "canvas" => TokenKind::Element(Element::Canvas),
+            "container" => TokenKind::Element(Element::Container),
+            _ => TokenKind::Identifier((start_byte, end_byte + 1).into()),
+        };
+
+        kind.into_token(start_byte, end_byte + 1)
     }
 
-    pub fn is_empty(&mut self) -> bool {
-        self.peek().is_none()
-    }
-
-    fn advance_by(&mut self, amount: usize) {
-        self.slice = &self.slice[amount..];
-        self.cursor += amount;
-    }
-
-    fn make_token<T>(&mut self, tokenizable: T, size: usize) -> Token
-    where
-        T: IntoToken,
-    {
-        let start_byte = self.cursor;
-        self.advance_by(size);
-        tokenizable.into_token(start_byte, self.cursor)
-    }
-
-    fn lex_string(&mut self) -> Token {
-        let start_byte = self.cursor;
-        self.advance_by(1);
-        let end_of_string = self.slice.find(['"', '\n']).unwrap_or(self.slice.len());
-
-        self.cursor += end_of_string + 1;
-        self.slice = &self.slice[end_of_string + 1..];
-
-        TokenKind::String.into_token(start_byte, self.cursor)
-    }
-
-    fn lex_identifier(&mut self) -> Token {
-        let next_whitespace = self
-            .slice
-            .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
-            .unwrap_or(self.slice.len());
-
-        let identifier = &self.slice[..next_whitespace];
-
-        match Element::from_str(identifier) {
-            Ok(element) => self.make_token(TokenKind::Element(element), next_whitespace),
-            Err(_) => self.make_token(TokenKind::Identifier, next_whitespace),
+    fn lex_number(&mut self, start_byte: usize) -> Token {
+        let mut end_byte = start_byte;
+        while let Some((e, '0'..='9' | '.')) = self.chars.peek() {
+            end_byte = *e;
+            self.chars.next();
         }
-    }
 
-    fn lex_number(&mut self) -> Token {
-        let start = self.cursor;
-        let end_of_number = self
-            .slice
-            .find(|c| !matches!(c, '_' | '.' | '0'..='9'))
-            .unwrap_or(self.slice.len());
-
-        let mut literal = &self.slice[..end_of_number];
+        let mut literal = &self.content[start_byte..=end_byte];
         let mut dots = literal.splitn(3, '.');
 
         if let (Some(one), Some(two), Some(_)) = (dots.next(), dots.next(), dots.next()) {
-            // numeric literal contains two or more dots, so we only lex
+            // numeric literal contains two or more dots, so we only lex,
             // from the first numerical to the last numerical before the
             // second dot, <one.len()>.<two.len()>
             //
@@ -277,25 +165,102 @@ impl<'lex> Lexer<'lex> {
             literal = &literal[..one.len() + 1 + two.len()];
         }
 
-        let len = literal.len();
-        let end = start + len;
-        self.advance_by(len);
-
         let is_float = literal.contains('.');
-        let kind = if is_float { TokenKind::Float } else { TokenKind::Int };
-        let location = (start..end).into();
-        Token { kind, location }
+        let kind = match is_float {
+            true => {
+                let literal = literal.parse().expect("failed to parse float literal");
+                TokenKind::Primitive(Primitive::Float(literal))
+            }
+            false => {
+                let literal = literal.parse().expect("failed to parse int literal");
+                TokenKind::Primitive(Primitive::Int(literal))
+            }
+        };
+
+        kind.into_token(start_byte, end_byte + 1)
     }
 
-    fn handle_indentation(&mut self, new_indent: usize) -> Option<Token> {
-        let current_indent = self.current_indent;
-        self.current_indent = new_indent;
-
-        match new_indent.cmp(&current_indent) {
-            Ordering::Greater => Some(TokenKind::Indent.into_token(self.cursor, self.cursor)),
-            Ordering::Less => Some(TokenKind::Dedent.into_token(self.cursor, self.cursor)),
-            Ordering::Equal => None,
+    fn lex_string(&mut self, delimiter: char, start_byte: usize) -> Token {
+        loop {
+            match self.chars.next() {
+                Some((end_byte, next)) if next == delimiter => {
+                    // add +1 to include the closing delimiter in the token
+                    break TokenKind::String.into_token(start_byte, end_byte + 1);
+                }
+                // Handle escape sequences
+                Some((_, '\\')) => {
+                    // found escape character, so consume the next character regardless of what it
+                    // is. This properly handles \", \', \\, \n, etc.
+                    if self.chars.next().is_none() {
+                        // if there is no character, the string is unterminated
+                        break LexError::UnterminatedString
+                            .into_token(start_byte, self.content.len());
+                    };
+                }
+                None => {
+                    break LexError::UnterminatedString.into_token(start_byte, self.content.len());
+                }
+                _ => {}
+            }
         }
+    }
+
+    fn lex_indent(&mut self, start_byte: usize) -> Token {
+        let mut count = 1;
+
+        loop {
+            match self.chars.peek() {
+                Some((_, next)) if next.is_whitespace() && *next != '\n' => {
+                    count += 1;
+                    self.chars.next();
+                }
+                Some(_) | None => break,
+            }
+        }
+
+        TokenKind::Indent(count).into_token(start_byte, start_byte + count)
+    }
+
+    fn lex_hex_value(&mut self, start_byte: usize) -> Token {
+        const SHORT: usize = 3;
+        const LONG: usize = 6;
+
+        let start_byte = start_byte + 1; // consume #
+        let mut end_byte = start_byte;
+
+        while let Some((_, '0'..='9' | 'a'..='f' | 'A'..='F')) = self.chars.peek() {
+            self.chars.next();
+            end_byte += 1;
+        }
+
+        let hex = &self.content[start_byte..end_byte];
+        let len = hex.len();
+        // Make sure that it's either three or six characters,
+        // otherwise it's an invalid hex
+        if len != 3 && len != 6 {
+            return LexError::InvalidHex.into_token(start_byte, end_byte);
+        }
+
+        let kind = match len {
+            SHORT => {
+                let r = u8::from_str_radix(&hex[0..1], 16).expect("already parsed");
+                let r = r << 4 | r;
+                let g = u8::from_str_radix(&hex[1..2], 16).expect("already parsed");
+                let g = g << 4 | g;
+                let b = u8::from_str_radix(&hex[2..3], 16).expect("already parsed");
+                let b = b << 4 | b;
+                TokenKind::Primitive(Primitive::Hex((r, g, b).into()))
+            }
+            LONG => {
+                let r = u8::from_str_radix(&hex[0..2], 16).expect("already parsed");
+                let g = u8::from_str_radix(&hex[2..4], 16).expect("already parsed");
+                let b = u8::from_str_radix(&hex[4..6], 16).expect("already parsed");
+                TokenKind::Primitive(Primitive::Hex((r, g, b).into()))
+            }
+            _ => unreachable!(),
+        };
+
+        kind.into_token(start_byte, end_byte)
     }
 }
 
@@ -303,75 +268,19 @@ impl Iterator for Lexer<'_> {
     type Item = Result<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(peeked) = self.peeked.take() {
-                return Some(peeked);
-            }
-
-            let mut chars = self.slice.chars().peekable();
-            let curr = chars.next()?;
-            let next = chars.peek();
-
-            break match (curr, next) {
-                ('\n', _) => {
-                    let start_byte = self.cursor;
-                    self.advance_by(1);
-
-                    let leading_spaces = self.slice.chars().take_while(|&c| c == ' ').count();
-                    self.advance_by(leading_spaces);
-
-                    let newline_token = TokenKind::Newline.into_token(start_byte, start_byte + 1);
-
-                    match self.handle_indentation(leading_spaces) {
-                        Some(indent_token) => Some(Ok(indent_token)),
-                        None => Some(Ok(newline_token)),
-                    }
-                }
-                (c, _) if c.is_whitespace() => {
-                    self.advance_by(c.len_utf8());
-                    continue;
-                }
-
-                ('/', Some('/')) => {
-                    let eol_location = self.slice.find('\n').unwrap_or(self.slice.len());
-                    self.advance_by(eol_location);
-                    continue;
-                }
-
-                ('-', _) => {
-                    self.advance_by(1);
-                    Some(Ok(Operator::Minus.into_token(self.cursor)))
-                }
-                (':', _) => {
-                    self.advance_by(1);
-                    Some(Ok(Operator::Colon.into_token(self.cursor)))
-                }
-                ('[', _) => {
-                    self.advance_by(1);
-                    Some(Ok(Operator::LBracket.into_token(self.cursor)))
-                }
-                (']', _) => {
-                    self.advance_by(1);
-                    Some(Ok(Operator::RBracket.into_token(self.cursor)))
-                }
-                (',', _) => {
-                    self.advance_by(1);
-                    Some(Ok(Operator::Comma.into_token(self.cursor)))
-                }
-
-                ('"' | '\'', _) => Some(Ok(self.lex_string())),
-                ('a'..='z' | 'A'..='Z' | '_', _) => Some(Ok(self.lex_identifier())),
-                ('0'..='9', _) => Some(Ok(self.lex_number())),
-
-                (c, n) => todo!("curr: `{c}`, next: {n:?}"),
-            };
+        match self.next_token() {
+            Ok(Token(TokenKind::Eof, _)) => None,
+            result => Some(result),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use serde::Serialize;
+
     use super::*;
+    use crate::token::Location;
 
     #[derive(Debug, Serialize)]
     struct SnapshotToken<'tok> {
@@ -382,11 +291,11 @@ mod tests {
 
     impl<'tok> SnapshotToken<'tok> {
         fn from_token(token: Token, content: &'tok str) -> Self {
-            let value = &content[token.location.to_range()];
+            let value = &content[token.1.to_range()];
 
             Self {
-                kind: token.kind,
-                location: token.location,
+                kind: token.0,
+                location: token.1,
                 value,
             }
         }

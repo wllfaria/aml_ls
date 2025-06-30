@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use aml_parser::{Ast, AstNode, Lexer, Parser};
+use aml_parser::{Ast, AstNode, Lexer, Parser, Tokens};
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -69,8 +69,9 @@ impl LanguageServer for Backend {
         let content = params.text_document.text;
         let version = params.text_document.version;
 
-        let lexer = Lexer::new(&content);
-        let parser = Parser::new(lexer);
+        let tokens = Lexer::new(&content).map(|r| r.unwrap()).collect();
+        let tokens = Tokens::new(tokens, content.len());
+        let parser = Parser::new(tokens, &content);
         let ast = parser.parse().ok();
 
         let file_info = FileInfo::new(content, ast, version);

@@ -1,0 +1,73 @@
+---
+source: aml-parser/src/parser.rs
+expression: ast
+---
+nodes:
+  - Text:
+      value:
+        String:
+          value:
+            start_byte: 80
+            end_byte: 87
+          text: "\"Hello\""
+      attributes:
+        - Attribute:
+            value:
+              String:
+                value:
+                  start_byte: 33
+                  end_byte: 38
+                text: "\"red\""
+            name:
+              Identifier:
+                value:
+                  start_byte: 12
+                  end_byte: 22
+                text: foreground
+        - Attribute:
+            value:
+              String:
+                value:
+                  start_byte: 69
+                  end_byte: 78
+                text: "'green',\n"
+            name:
+              Identifier:
+                value:
+                  start_byte: 44
+                  end_byte: 54
+                text: background
+      children: []
+      location:
+        start_byte: 1
+        end_byte: 5
+      text: text
+  - Span:
+      value:
+        String:
+          value:
+            start_byte: 120
+            end_byte: 127
+          text: "\"World\""
+      attributes:
+        - Attribute:
+            value:
+              String:
+                value:
+                  start_byte: 110
+                  end_byte: 118
+                text: "\"yellow\""
+            name:
+              Identifier:
+                value:
+                  start_byte: 98
+                  end_byte: 108
+                text: background
+      location:
+        start_byte: 92
+        end_byte: 96
+      text: span
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

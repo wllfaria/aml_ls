@@ -1,0 +1,24 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+Binary:
+  lhs:
+    Binary:
+      lhs:
+        Ident:
+          location:
+            start_byte: 0
+            end_byte: 1
+      rhs:
+        Ident:
+          location:
+            start_byte: 2
+            end_byte: 3
+      op: Dot
+  rhs:
+    Ident:
+      location:
+        start_byte: 4
+        end_byte: 5
+  op: Dot

@@ -13,51 +13,105 @@ expression: tokens
     start_byte: 1
     end_byte: 7
   value: vstack
-- kind: Indent
+- kind:
+    Indent: 8
   location:
-    start_byte: 28
+    start_byte: 7
+    end_byte: 15
+  value: "        "
+- kind: Newline
+  location:
+    start_byte: 26
+    end_byte: 27
+  value: "\n"
+- kind:
+    Indent: 1
+  location:
+    start_byte: 27
     end_byte: 28
-  value: ""
+  value: " "
 - kind:
     Element: Text
   location:
     start_byte: 28
     end_byte: 32
   value: text
+- kind:
+    Indent: 1
+  location:
+    start_byte: 32
+    end_byte: 33
+  value: " "
 - kind: String
   location:
     start_byte: 33
     end_byte: 37
   value: "\"hi\""
-- kind: Indent
+- kind:
+    Indent: 4
   location:
-    start_byte: 66
+    start_byte: 37
+    end_byte: 41
+  value: "    "
+- kind: Newline
+  location:
+    start_byte: 62
+    end_byte: 63
+  value: "\n"
+- kind:
+    Indent: 3
+  location:
+    start_byte: 63
     end_byte: 66
-  value: ""
+  value: "   "
 - kind:
     Element: Span
   location:
     start_byte: 66
     end_byte: 70
   value: span
-- kind: Dedent
+- kind:
+    Indent: 7
   location:
-    start_byte: 101
+    start_byte: 70
+    end_byte: 77
+  value: "       "
+- kind: Newline
+  location:
+    start_byte: 99
+    end_byte: 100
+  value: "\n"
+- kind:
+    Indent: 1
+  location:
+    start_byte: 100
     end_byte: 101
-  value: ""
+  value: " "
 - kind:
     Element: Text
   location:
     start_byte: 101
     end_byte: 105
   value: text
+- kind:
+    Indent: 1
+  location:
+    start_byte: 105
+    end_byte: 106
+  value: " "
 - kind: String
   location:
     start_byte: 106
     end_byte: 111
   value: "\"bye\""
-- kind: Dedent
+- kind:
+    Indent: 3
   location:
-    start_byte: 136
+    start_byte: 111
+    end_byte: 114
+  value: "   "
+- kind: Newline
+  location:
+    start_byte: 135
     end_byte: 136
-  value: ""
+  value: "\n"

@@ -1,0 +1,11 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+Call:
+  fun:
+    Ident:
+      location:
+        start_byte: 0
+        end_byte: 1
+  args: []
