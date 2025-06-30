@@ -10,6 +10,7 @@ nodes:
             start_byte: 5
             end_byte: 12
           text: "\"Hello\""
+      attributes: []
       children:
         - Span:
             value:
@@ -18,6 +19,7 @@ nodes:
                   start_byte: 22
                   end_byte: 29
                 text: "\"World\""
+            attributes: []
             location:
               start_byte: 17
               end_byte: 21

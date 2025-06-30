@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::error::Result;
-use crate::lexer::{Element, Lexer, Location, TokenKind, TransposeRef};
+use crate::lexer::{Element, Lexer, Location, Operator, TokenKind, TransposeRef};
 
 #[macro_export]
 macro_rules! expect {
@@ -61,12 +61,21 @@ pub enum AstNode {
     },
     Text {
         value: Option<Box<AstNode>>,
+        attributes: Vec<AstNode>,
         children: Vec<AstNode>,
         location: Location,
     },
     Span {
         value: Option<Box<AstNode>>,
+        attributes: Vec<AstNode>,
         location: Location,
+    },
+    Identifier {
+        value: Location,
+    },
+    Attribute {
+        name: Box<AstNode>,
+        value: Box<AstNode>,
     },
 }
 
@@ -95,19 +104,27 @@ impl<'p> Parser<'p> {
         self.add_scope()?;
 
         while !self.lexer.is_empty() {
-            let node = self.parse_node()?;
+            let Some(node) = self.parse_node()? else { continue };
             self.ast.nodes.push(node);
         }
 
         Ok(self.ast)
     }
 
-    fn parse_node(&mut self) -> Result<AstNode> {
-        match peek!(self.lexer) {
-            Some(token) if matches!(token.kind, TokenKind::Element(_)) => self.parse_element(),
-            Some(token) if matches!(token.kind, TokenKind::String) => self.parse_string(),
+    fn parse_node(&mut self) -> Result<Option<AstNode>> {
+        let node = match peek!(self.lexer) {
+            Some(token) if matches!(token.kind, TokenKind::Element(_)) => {
+                Some(self.parse_element()?)
+            }
+            Some(token) if matches!(token.kind, TokenKind::String) => Some(self.parse_string()?),
+            Some(token) if matches!(token.kind, TokenKind::Newline) => {
+                consume!(self.lexer);
+                None
+            }
             t => todo!("{t:#?}"),
-        }
+        };
+
+        Ok(node)
     }
 
     fn parse_string(&mut self) -> Result<AstNode> {
@@ -126,7 +143,7 @@ impl<'p> Parser<'p> {
         let node = match element {
             Element::Text => self.parse_text()?,
             Element::Span => self.parse_span()?,
-            _ => todo!(),
+            t => todo!("{t:?}"),
         };
 
         Ok(node)
@@ -135,6 +152,13 @@ impl<'p> Parser<'p> {
     fn parse_text(&mut self) -> Result<AstNode> {
         let keyword = expect!(self.lexer, TokenKind::Element(Element::Text));
         let location = keyword.location;
+
+        let attributes = match peek!(self.lexer) {
+            Some(token) if matches!(token.kind, TokenKind::Operator(Operator::LBracket)) => {
+                self.parse_attributes()?
+            }
+            _ => vec![],
+        };
 
         let value = match peek!(self.lexer) {
             Some(token) if matches!(token.kind, TokenKind::String) => {
@@ -159,20 +183,76 @@ impl<'p> Parser<'p> {
                     consume!(self.lexer);
                     continue;
                 }
-                _ => children.push(self.parse_node()?),
+                _ => {
+                    let Some(node) = self.parse_node()? else { continue };
+                    children.push(node)
+                }
             }
         }
 
         Ok(AstNode::Text {
             value,
+            attributes,
             children,
             location,
         })
     }
 
+    fn parse_identifier(&mut self) -> Result<AstNode> {
+        let identifier = expect!(self.lexer, TokenKind::Identifier);
+
+        Ok(AstNode::Identifier {
+            value: identifier.location,
+        })
+    }
+
+    fn parse_attributes(&mut self) -> Result<Vec<AstNode>> {
+        expect!(self.lexer, TokenKind::Operator(Operator::LBracket));
+
+        let mut attributes = vec![];
+
+        loop {
+            match peek!(self.lexer) {
+                Some(token) if matches!(token.kind, TokenKind::Operator(Operator::RBracket)) => {
+                    consume!(self.lexer);
+                    break;
+                }
+                None => break,
+                _ => {}
+            }
+
+            let name = self.parse_identifier()?;
+            expect!(self.lexer, TokenKind::Operator(Operator::Colon));
+            let value = self.parse_expression()?;
+
+            attributes.push(AstNode::Attribute {
+                name: Box::new(name),
+                value: Box::new(value),
+            })
+        }
+
+        Ok(attributes)
+    }
+
+    fn parse_expression(&mut self) -> Result<AstNode> {
+        let lhs = match peek!(self.lexer) {
+            Some(token) if matches!(token.kind, TokenKind::String) => self.parse_string()?,
+            _ => todo!(),
+        };
+
+        Ok(lhs)
+    }
+
     fn parse_span(&mut self) -> Result<AstNode> {
         let keyword = expect!(self.lexer, TokenKind::Element(Element::Span));
         let location = keyword.location;
+
+        let attributes = match peek!(self.lexer) {
+            Some(token) if matches!(token.kind, TokenKind::Operator(Operator::LBracket)) => {
+                self.parse_attributes()?
+            }
+            _ => vec![],
+        };
 
         let value = match peek!(self.lexer) {
             Some(token) if matches!(token.kind, TokenKind::String) => {
@@ -181,7 +261,11 @@ impl<'p> Parser<'p> {
             _ => None,
         };
 
-        Ok(AstNode::Span { value, location })
+        Ok(AstNode::Span {
+            value,
+            attributes,
+            location,
+        })
     }
 
     fn add_scope(&mut self) -> Result<()> {
@@ -237,14 +321,24 @@ mod tests {
         },
         Text {
             value: Option<Box<SnapshotAstNode<'ast>>>,
+            attributes: Vec<SnapshotAstNode<'ast>>,
             children: Vec<SnapshotAstNode<'ast>>,
             location: Location,
             text: &'ast str,
         },
         Span {
             value: Option<Box<SnapshotAstNode<'ast>>>,
+            attributes: Vec<SnapshotAstNode<'ast>>,
             location: Location,
             text: &'ast str,
+        },
+        Identifier {
+            value: Location,
+            text: &'ast str,
+        },
+        Attribute {
+            value: Box<SnapshotAstNode<'ast>>,
+            name: Box<SnapshotAstNode<'ast>>,
         },
     }
 
@@ -259,19 +353,40 @@ mod tests {
                     value,
                     children,
                     location,
+                    attributes,
                 } => Self::Text {
                     value: value.map(|n| Box::new(SnapshotAstNode::from_node(*n, content))),
                     text: &content[location.to_range()],
+                    attributes: attributes
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
                     children: children
                         .into_iter()
                         .map(|n| SnapshotAstNode::from_node(n, content))
                         .collect(),
                     location,
                 },
-                AstNode::Span { value, location } => Self::Span {
+                AstNode::Span {
+                    value,
+                    location,
+                    attributes,
+                } => Self::Span {
                     value: value.map(|n| Box::new(SnapshotAstNode::from_node(*n, content))),
+                    attributes: attributes
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
                     text: &content[location.to_range()],
                     location,
+                },
+                AstNode::Identifier { value } => Self::Identifier {
+                    text: &content[value.to_range()],
+                    value,
+                },
+                AstNode::Attribute { name, value } => Self::Attribute {
+                    name: Box::new(SnapshotAstNode::from_node(*name, content)),
+                    value: Box::new(SnapshotAstNode::from_node(*value, content)),
                 },
             }
         }
@@ -281,6 +396,21 @@ mod tests {
     fn test_parser() {
         let template = r#"text "Hello"
     span "World""#;
+
+        let lexer = Lexer::new(template);
+        let parser = Parser::new(lexer);
+
+        let ast = SnapshotAst::from_ast(parser.parse().unwrap(), template);
+
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_parsing_attributes() {
+        let template = r#"
+text [foreground: "red"] "Hello"
+    span [background: "yellow"] "World"
+"#;
 
         let lexer = Lexer::new(template);
         let parser = Parser::new(lexer);

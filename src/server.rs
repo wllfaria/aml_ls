@@ -155,6 +155,7 @@ impl Backend {
             AstNode::Text { .. } => self.docs.text.into(),
             AstNode::Span { .. } => self.docs.span.into(),
             AstNode::String { .. } => "String literal".into(),
+            _ => todo!(),
         }
     }
 }
@@ -165,6 +166,7 @@ fn find_node_in_subtree(node: &AstNode, byte_offset: usize) -> Option<&AstNode> 
             value,
             children,
             location,
+            ..
         } => {
             if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
                 return Some(node);
@@ -184,7 +186,9 @@ fn find_node_in_subtree(node: &AstNode, byte_offset: usize) -> Option<&AstNode> 
                 }
             }
         }
-        AstNode::Span { value, location } => {
+        AstNode::Span {
+            value, location, ..
+        } => {
             if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
                 return Some(node);
             }
@@ -200,6 +204,7 @@ fn find_node_in_subtree(node: &AstNode, byte_offset: usize) -> Option<&AstNode> 
                 return Some(node);
             }
         }
+        _ => todo!(),
     }
     None
 }
