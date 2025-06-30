@@ -28,9 +28,20 @@ macro_rules! peek {
 }
 
 #[macro_export]
-macro_rules! skip {
+macro_rules! expect_peek {
+    ($lexer:expr, $kind:pat) => {{
+        let token = peek!($lexer);
+        if token.is_none() || !matches!(token.unwrap().kind, $kind) {
+            todo!();
+        }
+        token.unwrap()
+    }};
+}
+
+#[macro_export]
+macro_rules! consume {
     ($lexer:expr) => {
-        _ = $lexer.next().transpose()?
+        $lexer.next().transpose()?
     };
 }
 
@@ -51,9 +62,11 @@ pub enum AstNode {
     Text {
         value: Option<Box<AstNode>>,
         children: Vec<AstNode>,
+        location: Location,
     },
     Span {
         value: Option<Location>,
+        location: Location,
     },
 }
 
@@ -104,7 +117,7 @@ impl<'p> Parser<'p> {
     }
 
     fn parse_element(&mut self) -> Result<AstNode> {
-        let token = expect!(self.lexer, TokenKind::Element(_));
+        let token = expect_peek!(self.lexer, TokenKind::Element(_));
 
         let TokenKind::Element(element) = token.kind else {
             unreachable!();
@@ -120,6 +133,9 @@ impl<'p> Parser<'p> {
     }
 
     fn parse_text(&mut self) -> Result<AstNode> {
+        let keyword = expect!(self.lexer, TokenKind::Element(Element::Text));
+        let location = keyword.location;
+
         let value = match peek!(self.lexer) {
             Some(token) if matches!(token.kind, TokenKind::String) => {
                 Some(Box::new(self.parse_string()?))
@@ -132,25 +148,32 @@ impl<'p> Parser<'p> {
         while let Some(token) = peek!(self.lexer) {
             match token.kind {
                 TokenKind::Indent => {
-                    skip!(self.lexer);
+                    consume!(self.lexer);
                     self.add_scope()?;
                 }
                 TokenKind::Dedent => {
-                    skip!(self.lexer);
+                    consume!(self.lexer);
                     self.pop_scope()?
                 }
                 TokenKind::Newline => {
-                    skip!(self.lexer);
+                    consume!(self.lexer);
                     continue;
                 }
                 _ => children.push(self.parse_node()?),
             }
         }
 
-        Ok(AstNode::Text { value, children })
+        Ok(AstNode::Text {
+            value,
+            children,
+            location,
+        })
     }
 
     fn parse_span(&mut self) -> Result<AstNode> {
+        let keyword = expect!(self.lexer, TokenKind::Element(Element::Span));
+        let location = keyword.location;
+
         let value = match peek!(self.lexer) {
             Some(token) if matches!(token.kind, TokenKind::String) => {
                 let token = expect!(self.lexer, TokenKind::String);
@@ -159,7 +182,7 @@ impl<'p> Parser<'p> {
             _ => None,
         };
 
-        Ok(AstNode::Span { value })
+        Ok(AstNode::Span { value, location })
     }
 
     fn add_scope(&mut self) -> Result<()> {

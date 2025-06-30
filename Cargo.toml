@@ -23,6 +23,9 @@ thiserror.workspace = true
 tokio = { version = "1.45.1", features = ["io-std", "macros", "rt", "rt-multi-thread"] }
 clap = { version = "4.5.40", features = ["derive"] }
 tower-lsp = "0.20.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
+tracing-appender = "0.2"
 
 [profile.dev.package]
 insta.opt-level = 3
