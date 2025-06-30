@@ -47,14 +47,14 @@ macro_rules! consume {
 
 pub type NodeId = usize;
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Default)]
 pub struct Ast {
     pub nodes: Vec<AstNode>,
     pub variables: HashMap<String, Location>,
     pub scopes: Vec<Scope>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub enum AstNode {
     String {
         value: Location,
@@ -65,7 +65,7 @@ pub enum AstNode {
         location: Location,
     },
     Span {
-        value: Option<Location>,
+        value: Option<Box<AstNode>>,
         location: Location,
     },
 }
@@ -176,8 +176,7 @@ impl<'p> Parser<'p> {
 
         let value = match peek!(self.lexer) {
             Some(token) if matches!(token.kind, TokenKind::String) => {
-                let token = expect!(self.lexer, TokenKind::String);
-                Some(token.location)
+                Some(Box::new(self.parse_string()?))
             }
             _ => None,
         };
@@ -209,6 +208,75 @@ mod tests {
     use super::*;
     use crate::lexer::Lexer;
 
+    #[derive(Serialize)]
+    struct SnapshotAst<'ast> {
+        pub nodes: Vec<SnapshotAstNode<'ast>>,
+        pub variables: HashMap<String, Location>,
+        pub scopes: Vec<Scope>,
+    }
+
+    impl<'ast> SnapshotAst<'ast> {
+        pub fn from_ast(ast: Ast, content: &'ast str) -> Self {
+            Self {
+                nodes: ast
+                    .nodes
+                    .into_iter()
+                    .map(|n| SnapshotAstNode::from_node(n, content))
+                    .collect(),
+                variables: ast.variables,
+                scopes: ast.scopes,
+            }
+        }
+    }
+
+    #[derive(Serialize)]
+    enum SnapshotAstNode<'ast> {
+        String {
+            value: Location,
+            text: &'ast str,
+        },
+        Text {
+            value: Option<Box<SnapshotAstNode<'ast>>>,
+            children: Vec<SnapshotAstNode<'ast>>,
+            location: Location,
+            text: &'ast str,
+        },
+        Span {
+            value: Option<Box<SnapshotAstNode<'ast>>>,
+            location: Location,
+            text: &'ast str,
+        },
+    }
+
+    impl<'ast> SnapshotAstNode<'ast> {
+        fn from_node(node: AstNode, content: &'ast str) -> Self {
+            match node {
+                AstNode::String { value } => {
+                    let text = &content[value.to_range()];
+                    Self::String { value, text }
+                }
+                AstNode::Text {
+                    value,
+                    children,
+                    location,
+                } => Self::Text {
+                    value: value.map(|n| Box::new(SnapshotAstNode::from_node(*n, content))),
+                    text: &content[location.to_range()],
+                    children: children
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                    location,
+                },
+                AstNode::Span { value, location } => Self::Span {
+                    value: value.map(|n| Box::new(SnapshotAstNode::from_node(*n, content))),
+                    text: &content[location.to_range()],
+                    location,
+                },
+            }
+        }
+    }
+
     #[test]
     fn test_parser() {
         let template = r#"text "Hello"
@@ -216,7 +284,8 @@ mod tests {
 
         let lexer = Lexer::new(template);
         let parser = Parser::new(lexer);
-        let ast = parser.parse().unwrap();
+
+        let ast = SnapshotAst::from_ast(parser.parse().unwrap(), template);
 
         insta::assert_yaml_snapshot!(ast);
     }

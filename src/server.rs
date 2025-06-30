@@ -189,9 +189,8 @@ fn find_node_in_subtree(node: &AstNode, byte_offset: usize) -> Option<&AstNode> 
                 return Some(node);
             }
 
-            if let Some(location) = value
-                && byte_offset >= location.start_byte
-                && byte_offset <= location.end_byte
+            if let Some(value) = value
+                && let Some(node) = find_node_in_subtree(value, byte_offset)
             {
                 return Some(node);
             }

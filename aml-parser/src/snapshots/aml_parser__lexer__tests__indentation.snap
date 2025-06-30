@@ -6,47 +6,58 @@ expression: tokens
   location:
     start_byte: 0
     end_byte: 1
+  value: "\n"
 - kind:
     Element: VStack
   location:
     start_byte: 1
     end_byte: 7
+  value: vstack
 - kind: Indent
   location:
     start_byte: 28
     end_byte: 28
+  value: ""
 - kind:
     Element: Text
   location:
     start_byte: 28
     end_byte: 32
+  value: text
 - kind: String
   location:
     start_byte: 33
-    end_byte: 36
+    end_byte: 37
+  value: "\"hi\""
 - kind: Indent
   location:
-    start_byte: 65
-    end_byte: 65
+    start_byte: 66
+    end_byte: 66
+  value: ""
 - kind:
     Element: Span
   location:
-    start_byte: 65
-    end_byte: 69
+    start_byte: 66
+    end_byte: 70
+  value: span
 - kind: Dedent
   location:
-    start_byte: 100
-    end_byte: 100
+    start_byte: 101
+    end_byte: 101
+  value: ""
 - kind:
     Element: Text
   location:
-    start_byte: 100
-    end_byte: 104
+    start_byte: 101
+    end_byte: 105
+  value: text
 - kind: String
   location:
-    start_byte: 105
-    end_byte: 109
+    start_byte: 106
+    end_byte: 111
+  value: "\"bye\""
 - kind: Dedent
   location:
-    start_byte: 134
-    end_byte: 134
+    start_byte: 136
+    end_byte: 136
+  value: ""

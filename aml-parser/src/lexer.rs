@@ -67,9 +67,30 @@ pub enum Keyword {
 }
 
 #[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Operator {
+    LBracket,
+    RBracket,
+    Colon,
+    Comma,
+    Minus,
+}
+
+impl Operator {
+    pub fn into_token(self, cursor: usize) -> Token {
+        Token {
+            location: (cursor - 1..cursor).into(),
+            kind: TokenKind::Operator(self),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TokenKind {
     Element(Element),
     Keyword(Keyword),
+    Operator(Operator),
+    Int,
+    Float,
     Identifier,
     String,
     Newline,
@@ -95,6 +116,10 @@ impl Location {
             start_byte: start,
             end_byte: end,
         }
+    }
+
+    pub fn to_range(&self) -> Range<usize> {
+        self.start_byte..self.end_byte
     }
 }
 impl From<(usize, usize)> for Location {
@@ -213,7 +238,7 @@ impl<'lex> Lexer<'lex> {
         self.advance_by(1);
         let end_of_string = self.slice.find(['"', '\n']).unwrap_or(self.slice.len());
 
-        self.cursor += end_of_string;
+        self.cursor += end_of_string + 1;
         self.slice = &self.slice[end_of_string + 1..];
 
         TokenKind::String.into_token(start_byte, self.cursor)
@@ -231,6 +256,35 @@ impl<'lex> Lexer<'lex> {
             Ok(element) => self.make_token(TokenKind::Element(element), next_whitespace),
             Err(_) => self.make_token(TokenKind::Identifier, next_whitespace),
         }
+    }
+
+    fn lex_number(&mut self) -> Token {
+        let start = self.cursor;
+        let end_of_number = self
+            .slice
+            .find(|c| !matches!(c, '_' | '.' | '0'..='9'))
+            .unwrap_or(self.slice.len());
+
+        let mut literal = &self.slice[..end_of_number];
+        let mut dots = literal.splitn(3, '.');
+
+        if let (Some(one), Some(two), Some(_)) = (dots.next(), dots.next(), dots.next()) {
+            // numeric literal contains two or more dots, so we only lex
+            // from the first numerical to the last numerical before the
+            // second dot, <one.len()>.<two.len()>
+            //
+            // 123.456.789 -> 123.456 (leave .789) to be lexed after
+            literal = &literal[..one.len() + 1 + two.len()];
+        }
+
+        let len = literal.len();
+        let end = start + len;
+        self.advance_by(len);
+
+        let is_float = literal.contains('.');
+        let kind = if is_float { TokenKind::Float } else { TokenKind::Int };
+        let location = (start..end).into();
+        Token { kind, location }
     }
 
     fn handle_indentation(&mut self, new_indent: usize) -> Option<Token> {
@@ -284,10 +338,32 @@ impl Iterator for Lexer<'_> {
                     continue;
                 }
 
-                ('"', _) => Some(Ok(self.lex_string())),
+                ('-', _) => {
+                    self.advance_by(1);
+                    Some(Ok(Operator::Minus.into_token(self.cursor)))
+                }
+                (':', _) => {
+                    self.advance_by(1);
+                    Some(Ok(Operator::Colon.into_token(self.cursor)))
+                }
+                ('[', _) => {
+                    self.advance_by(1);
+                    Some(Ok(Operator::LBracket.into_token(self.cursor)))
+                }
+                (']', _) => {
+                    self.advance_by(1);
+                    Some(Ok(Operator::RBracket.into_token(self.cursor)))
+                }
+                (',', _) => {
+                    self.advance_by(1);
+                    Some(Ok(Operator::Comma.into_token(self.cursor)))
+                }
 
+                ('"' | '\'', _) => Some(Ok(self.lex_string())),
                 ('a'..='z' | 'A'..='Z' | '_', _) => Some(Ok(self.lex_identifier())),
-                _ => todo!(),
+                ('0'..='9', _) => Some(Ok(self.lex_number())),
+
+                (c, n) => todo!("curr: `{c}`, next: {n:?}"),
             };
         }
     }
@@ -297,8 +373,27 @@ impl Iterator for Lexer<'_> {
 mod tests {
     use super::*;
 
+    #[derive(Debug, Serialize)]
+    struct SnapshotToken<'tok> {
+        kind: TokenKind,
+        location: Location,
+        value: &'tok str,
+    }
+
+    impl<'tok> SnapshotToken<'tok> {
+        fn from_token(token: Token, content: &'tok str) -> Self {
+            let value = &content[token.location.to_range()];
+
+            Self {
+                kind: token.kind,
+                location: token.location,
+                value,
+            }
+        }
+    }
+
     #[test]
-    fn test_lexer() {
+    fn test_indentation() {
         let template = r#"
 vstack        // 0 spaces
  text "hi"    // 1 space → Indent
@@ -306,7 +401,26 @@ vstack        // 0 spaces
  text "bye"   // 1 space → Dedent
 "#;
 
-        let tokens = Lexer::new(template).map(|t| t.unwrap()).collect::<Vec<_>>();
+        let tokens = Lexer::new(template)
+            .map(|t| t.unwrap())
+            .map(|t| SnapshotToken::from_token(t, template))
+            .collect::<Vec<_>>();
+
+        insta::assert_yaml_snapshot!(tokens);
+    }
+
+    #[test]
+    fn test_attributes() {
+        let template = r#"
+vstack [width: 10, height: 3]
+    text [foreground: "red"] "Hello you"
+    border [height: -10]
+"#;
+        let tokens = Lexer::new(template)
+            .map(|t| t.unwrap())
+            .map(|t| SnapshotToken::from_token(t, template))
+            .collect::<Vec<_>>();
+
         insta::assert_yaml_snapshot!(tokens);
     }
 }

@@ -1,0 +1,159 @@
+---
+source: aml-parser/src/lexer.rs
+expression: tokens
+---
+- kind: Newline
+  location:
+    start_byte: 0
+    end_byte: 1
+  value: "\n"
+- kind:
+    Element: VStack
+  location:
+    start_byte: 1
+    end_byte: 7
+  value: vstack
+- kind:
+    Operator: LBracket
+  location:
+    start_byte: 8
+    end_byte: 9
+  value: "["
+- kind: Identifier
+  location:
+    start_byte: 9
+    end_byte: 14
+  value: width
+- kind:
+    Operator: Colon
+  location:
+    start_byte: 14
+    end_byte: 15
+  value: ":"
+- kind: Int
+  location:
+    start_byte: 16
+    end_byte: 18
+  value: "10"
+- kind:
+    Operator: Comma
+  location:
+    start_byte: 18
+    end_byte: 19
+  value: ","
+- kind: Identifier
+  location:
+    start_byte: 20
+    end_byte: 26
+  value: height
+- kind:
+    Operator: Colon
+  location:
+    start_byte: 26
+    end_byte: 27
+  value: ":"
+- kind: Int
+  location:
+    start_byte: 28
+    end_byte: 29
+  value: "3"
+- kind:
+    Operator: RBracket
+  location:
+    start_byte: 29
+    end_byte: 30
+  value: "]"
+- kind: Indent
+  location:
+    start_byte: 35
+    end_byte: 35
+  value: ""
+- kind:
+    Element: Text
+  location:
+    start_byte: 35
+    end_byte: 39
+  value: text
+- kind:
+    Operator: LBracket
+  location:
+    start_byte: 40
+    end_byte: 41
+  value: "["
+- kind: Identifier
+  location:
+    start_byte: 41
+    end_byte: 51
+  value: foreground
+- kind:
+    Operator: Colon
+  location:
+    start_byte: 51
+    end_byte: 52
+  value: ":"
+- kind: String
+  location:
+    start_byte: 53
+    end_byte: 58
+  value: "\"red\""
+- kind:
+    Operator: RBracket
+  location:
+    start_byte: 58
+    end_byte: 59
+  value: "]"
+- kind: String
+  location:
+    start_byte: 60
+    end_byte: 71
+  value: "\"Hello you\""
+- kind: Newline
+  location:
+    start_byte: 71
+    end_byte: 72
+  value: "\n"
+- kind:
+    Element: Border
+  location:
+    start_byte: 76
+    end_byte: 82
+  value: border
+- kind:
+    Operator: LBracket
+  location:
+    start_byte: 83
+    end_byte: 84
+  value: "["
+- kind: Identifier
+  location:
+    start_byte: 84
+    end_byte: 90
+  value: height
+- kind:
+    Operator: Colon
+  location:
+    start_byte: 90
+    end_byte: 91
+  value: ":"
+- kind:
+    Operator: Minus
+  location:
+    start_byte: 92
+    end_byte: 93
+  value: "-"
+- kind: Int
+  location:
+    start_byte: 93
+    end_byte: 95
+  value: "10"
+- kind:
+    Operator: RBracket
+  location:
+    start_byte: 95
+    end_byte: 96
+  value: "]"
+- kind: Dedent
+  location:
+    start_byte: 97
+    end_byte: 97
+  value: ""

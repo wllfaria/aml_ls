@@ -1,0 +1,34 @@
+---
+source: aml-parser/src/parser.rs
+expression: ast
+---
+nodes:
+  - Text:
+      value:
+        String:
+          value:
+            start_byte: 5
+            end_byte: 12
+          text: "\"Hello\""
+      children:
+        - Span:
+            value:
+              String:
+                value:
+                  start_byte: 22
+                  end_byte: 29
+                text: "\"World\""
+            location:
+              start_byte: 17
+              end_byte: 21
+            text: span
+      location:
+        start_byte: 0
+        end_byte: 4
+      text: text
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0
