@@ -27,6 +27,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "aml-docs"
+version = "0.1.0"
+
+[[package]]
 name = "aml-parser"
 version = "0.1.0"
 dependencies = [
@@ -39,6 +43,7 @@ dependencies = [
 name = "aml_ls"
 version = "0.1.0"
 dependencies = [
+ "aml-docs",
  "aml-parser",
  "clap",
  "thiserror 2.0.12",

@@ -34,6 +34,7 @@ impl FileInfo {
 struct Backend {
     client: Client,
     files: Arc<RwLock<HashMap<Url, FileInfo>>>,
+    docs: aml_docs::Docs,
 }
 
 #[tower_lsp::async_trait]
@@ -151,79 +152,9 @@ impl Backend {
 
     fn get_hover_content(&self, node: &AstNode) -> String {
         match node {
-            AstNode::Text { .. } => [
-                "# Text (`text`)",
-                "",
-                "Displays text.",
-                "",
-                r#"String literals can be wrapped in either `"` or `'`."#,
-                "",
-                "To add styles to text in the middle of a string use a `span` element as the ",
-                "`text` element only accepts `span`s as children. Any other element will be",
-                "ignored. ",
-                "",
-                "## Example",
-                "",
-                "```",
-                r#"text [foreground: "red"] "I'm a little sausage""#,
-                "```",
-                "",
-                "## Attributes",
-                "",
-                "### `wrap`",
-                "",
-                "Default is to wrap on word boundaries such as space and hyphen, and this method",
-                "of wrapping will be used if no `wrap` attribute is given.",
-                "",
-                "Valid values:",
-                r#"* `"break"`: the text will wrap once it can no longer fit"#,
-                "",
-                "### `text_align`",
-                "",
-                "Note that text align will align the text within the element.",
-                "The text element will size it self according to its constraint.",
-                "",
-                "To right align text to the right side of the screen therefore requires the use",
-                "of the alignment widget in combination with the text align attribute.",
-                "",
-                "Default: `left`",
-                "",
-                "Valid values:",
-                r#"* `"left"`"#,
-                r#"* `"right"`"#,
-                r#"* `"centre"` | `"center"`"#,
-                "",
-                "Example of right aligned text",
-                "```",
-                "border [width: 5 + 2]",
-                r#"    text [text_align: "right"] "hello you""#,
-                "```",
-                "",
-                "```",
-                "┌─────┐",
-                "│hello│",
-                "│  you│",
-                "└─────┘",
-                "```",
-                "",
-                "Example of centre aligned text",
-                "```",
-                "border [width: 5 + 2]",
-                r#"    text [text_align: "centre"] "hello you""#,
-                "```",
-                "",
-                "```",
-                "┌─────┐",
-                "│hello│",
-                "│ you │",
-                "└─────┘",
-                "```",
-            ]
-            .join("\n"),
-            AstNode::Span { .. } => {
-                "**span** - A styled text span within a text element.".to_string()
-            }
-            AstNode::String { .. } => "String literal".to_string(),
+            AstNode::Text { .. } => self.docs.text.into(),
+            AstNode::Span { .. } => self.docs.span.into(),
+            AstNode::String { .. } => "String literal".into(),
         }
     }
 }
@@ -314,6 +245,7 @@ pub async fn start() {
         Backend {
             client,
             files: Arc::new(RwLock::new(HashMap::new())),
+            docs: aml_docs::Docs::default(),
         }
     });
 

@@ -1,0 +1,4 @@
+[package]
+name = "aml-docs"
+version.workspace = true
+edition.workspace = true
