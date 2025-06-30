@@ -206,16 +206,43 @@ impl<'p> Parser<'p> {
         })
     }
 
+    fn skip_whitespace(&mut self) -> Result<()> {
+        loop {
+            let Some(token) = peek!(self.lexer) else { break };
+
+            match token.kind {
+                TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent => consume!(self.lexer),
+                _ => break,
+            };
+        }
+
+        Ok(())
+    }
+
     fn parse_attributes(&mut self) -> Result<Vec<AstNode>> {
         expect!(self.lexer, TokenKind::Operator(Operator::LBracket));
 
         let mut attributes = vec![];
 
         loop {
+            self.skip_whitespace()?;
+
             match peek!(self.lexer) {
                 Some(token) if matches!(token.kind, TokenKind::Operator(Operator::RBracket)) => {
                     consume!(self.lexer);
                     break;
+                }
+                Some(token) if matches!(token.kind, TokenKind::Newline) => {
+                    consume!(self.lexer);
+                    continue;
+                }
+                Some(token) if matches!(token.kind, TokenKind::Indent) => {
+                    consume!(self.lexer);
+                    continue;
+                }
+                Some(token) if matches!(token.kind, TokenKind::Dedent) => {
+                    consume!(self.lexer);
+                    continue;
                 }
                 None => break,
                 _ => {}
@@ -224,6 +251,13 @@ impl<'p> Parser<'p> {
             let name = self.parse_identifier()?;
             expect!(self.lexer, TokenKind::Operator(Operator::Colon));
             let value = self.parse_expression()?;
+
+            match peek!(self.lexer) {
+                Some(token) if matches!(token.kind, TokenKind::Operator(Operator::Comma)) => {
+                    consume!(self.lexer);
+                }
+                _ => {}
+            }
 
             attributes.push(AstNode::Attribute {
                 name: Box::new(name),
