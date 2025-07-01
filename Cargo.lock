@@ -38,7 +38,7 @@ name = "aml-docs"
 version = "0.1.0"
 
 [[package]]
-name = "aml-parser"
+name = "aml-syntax"
 version = "0.1.0"
 dependencies = [
  "aml-core",
@@ -64,7 +64,7 @@ version = "0.1.0"
 dependencies = [
  "aml-core",
  "aml-docs",
- "aml-parser",
+ "aml-syntax",
  "aml-token",
  "clap",
  "thiserror 2.0.12",

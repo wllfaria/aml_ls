@@ -1,5 +1,5 @@
 ---
-source: aml-parser/src/parser.rs
+source: aml-syntax/src/parser.rs
 expression: get_ast(template)
 ---
 nodes:
@@ -7,48 +7,61 @@ nodes:
       value:
         String:
           value:
-            start_byte: 26
-            end_byte: 33
+            start_byte: 79
+            end_byte: 86
           text: "\"Hello\""
       attributes:
         - Attribute:
             name:
               Identifier:
                 value:
-                  start_byte: 7
-                  end_byte: 17
+                  start_byte: 12
+                  end_byte: 22
                 text: foreground
             value:
               String:
                 location:
-                  start_byte: 19
-                  end_byte: 24
+                  start_byte: 33
+                  end_byte: 38
                 value: "\"red\""
+        - Attribute:
+            name:
+              Identifier:
+                value:
+                  start_byte: 44
+                  end_byte: 54
+                text: background
+            value:
+              String:
+                location:
+                  start_byte: 68
+                  end_byte: 75
+                value: "'green'"
       children:
         - Span:
             value:
               String:
                 value:
-                  start_byte: 66
-                  end_byte: 73
+                  start_byte: 119
+                  end_byte: 126
                 text: "\"World\""
             attributes:
               - Attribute:
                   name:
                     Identifier:
                       value:
-                        start_byte: 44
-                        end_byte: 54
+                        start_byte: 97
+                        end_byte: 107
                       text: background
                   value:
                     String:
                       location:
-                        start_byte: 56
-                        end_byte: 64
+                        start_byte: 109
+                        end_byte: 117
                       value: "\"yellow\""
             location:
-              start_byte: 38
-              end_byte: 42
+              start_byte: 91
+              end_byte: 95
             text: span
       location:
         start_byte: 1

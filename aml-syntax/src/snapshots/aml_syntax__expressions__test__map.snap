@@ -1,5 +1,5 @@
 ---
-source: aml-parser/src/expressions.rs
+source: aml-syntax/src/expressions.rs
 expression: parse(input)
 ---
 Map:

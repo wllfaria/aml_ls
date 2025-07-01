@@ -1,8 +1,7 @@
-use serde::Serialize;
+use aml_token::{Operator, TokenKind, Tokens};
 
-use aml_core::Location;
-use aml_token::{Operator, Primitive, TokenKind, Tokens};
-use crate::Result;
+use crate::ast::Expr;
+use crate::error::Result;
 
 pub mod precedences {
     pub const INITIAL: u8 = 0;
@@ -31,38 +30,6 @@ fn get_precedence(op: Operator) -> u8 {
 
         _ => precedences::INITIAL,
     }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub enum Expr {
-    Unary {
-        op: Operator,
-        expr: Box<Expr>,
-    },
-    Binary {
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-        op: Operator,
-    },
-    Ident {
-        location: Location,
-    },
-    String {
-        location: Location,
-    },
-    Call {
-        fun: Box<Expr>,
-        args: Vec<Expr>,
-    },
-    Primitive(Primitive),
-    ArrayIndex {
-        lhs: Box<Expr>,
-        index: Box<Expr>,
-    },
-    List(Vec<Expr>),
-    Map {
-        items: Vec<(Expr, Expr)>,
-    },
 }
 
 pub fn parse_expression(tokens: &mut Tokens) -> Result<Expr> {
@@ -216,8 +183,11 @@ fn parse_function(tokens: &mut Tokens, lhs: Expr) -> Result<Expr> {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use aml_core::Location;
+    use aml_token::{Lexer, Primitive};
+    use serde::Serialize;
+
     use super::*;
-    use aml_token::Lexer;
 
     #[derive(Debug, Serialize)]
     pub enum SnapshotExpr<'ast> {
@@ -424,3 +394,4 @@ pub(crate) mod test {
         insta::assert_yaml_snapshot!(parse(input));
     }
 }
+

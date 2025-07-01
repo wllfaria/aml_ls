@@ -1,5 +1,5 @@
 ---
-source: aml-parser/src/expressions.rs
+source: aml-syntax/src/expressions.rs
 expression: parse(input)
 ---
 Binary:
@@ -11,7 +11,7 @@ Binary:
       rhs:
         Primitive:
           Int: 2
-      op: NotEqual
+      op: EqualEqual
   rhs:
     Binary:
       lhs:
@@ -20,5 +20,5 @@ Binary:
       rhs:
         Primitive:
           Int: 4
-      op: NotEqual
+      op: EqualEqual
   op: And

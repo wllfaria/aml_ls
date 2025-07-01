@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use aml_parser::{Ast, Parser};
+use aml_syntax::{Ast, Parser};
 use aml_token::{Lexer, Tokens};
 use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
@@ -46,7 +46,7 @@ impl DocumentManager {
 
         let ast = self.parse_content(&content);
         let file_info = FileInfo::new(content, ast, version);
-        
+
         self.files.write().await.insert(uri, file_info);
     }
 
@@ -79,7 +79,9 @@ impl DocumentManager {
     }
 
     fn parse_content(&self, content: &str) -> Option<Ast> {
-        let tokens = Lexer::new(content).map(|r| r.ok()).collect::<Option<Vec<_>>>()?;
+        let tokens = Lexer::new(content)
+            .map(|r| r.ok())
+            .collect::<Option<Vec<_>>>()?;
         let tokens = Tokens::new(tokens, content.len());
         let parser = Parser::new(tokens, content);
         parser.parse().ok()
@@ -134,3 +136,4 @@ impl DocumentManager {
         }
     }
 }
+

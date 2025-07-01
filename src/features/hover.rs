@@ -1,4 +1,4 @@
-use aml_parser::{Ast, AstNode};
+use aml_syntax::{Ast, AstNode, Expr};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
@@ -16,7 +16,11 @@ impl HoverProvider {
         }
     }
 
-    pub async fn hover(&self, document_manager: &DocumentManager, params: HoverParams) -> Result<Option<Hover>> {
+    pub async fn hover(
+        &self,
+        document_manager: &DocumentManager,
+        params: HoverParams,
+    ) -> Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let files = document_manager.files().read().await;
@@ -24,7 +28,9 @@ impl HoverProvider {
         let Some(file_info) = files.get(&uri) else { return Ok(None) };
         let Some(ast) = &file_info.ast else { return Ok(None) };
         let byte_offset = document_manager.position_to_byte_offset(&file_info.content, position);
-        let Some((node_info, location)) = self.find_node_at_position(ast, byte_offset) else { return Ok(None) };
+        let Some((node_info, location)) = self.find_node_at_position(ast, byte_offset) else {
+            return Ok(None);
+        };
         let value = self.get_hover_content(node_info);
 
         let contents = HoverContents::Markup(MarkupContent {
@@ -33,19 +39,23 @@ impl HoverProvider {
         });
 
         let range = Some(Range {
-            start: document_manager.byte_offset_to_position(&file_info.content, location.start_byte),
+            start: document_manager
+                .byte_offset_to_position(&file_info.content, location.start_byte),
             end: document_manager.byte_offset_to_position(&file_info.content, location.end_byte),
         });
 
-        Ok(Some(Hover {
-            contents,
-            range,
-        }))
+        Ok(Some(Hover { contents, range }))
     }
 
-    fn find_node_at_position<'a>(&self, ast: &'a Ast, byte_offset: usize) -> Option<(&'a AstNode, aml_core::Location)> {
+    fn find_node_at_position<'a>(
+        &self,
+        ast: &'a Ast,
+        byte_offset: usize,
+    ) -> Option<(&'a AstNode, aml_core::Location)> {
         for node in &ast.nodes {
-            if let Some((found_node, location)) = find_node_in_subtree_with_location(node, byte_offset) {
+            if let Some((found_node, location)) =
+                find_node_in_subtree_with_location(node, byte_offset)
+            {
                 return Some((found_node, location));
             }
         }
@@ -69,7 +79,10 @@ impl HoverProvider {
     }
 }
 
-fn find_node_in_subtree_with_location(node: &AstNode, byte_offset: usize) -> Option<(&AstNode, aml_core::Location)> {
+fn find_node_in_subtree_with_location(
+    node: &AstNode,
+    byte_offset: usize,
+) -> Option<(&AstNode, aml_core::Location)> {
     match node {
         AstNode::Text {
             value,
@@ -80,14 +93,17 @@ fn find_node_in_subtree_with_location(node: &AstNode, byte_offset: usize) -> Opt
         } => {
             // Check attributes first (more specific)
             for attribute in attributes {
-                if let Some((found, loc)) = find_node_in_subtree_with_location(attribute, byte_offset) {
+                if let Some((found, loc)) =
+                    find_node_in_subtree_with_location(attribute, byte_offset)
+                {
                     return Some((found, loc));
                 }
             }
 
             // Check value node
             if let Some(value_node) = value
-                && let Some((found, loc)) = find_node_in_subtree_with_location(value_node, byte_offset)
+                && let Some((found, loc)) =
+                    find_node_in_subtree_with_location(value_node, byte_offset)
             {
                 return Some((found, loc));
             }
@@ -106,13 +122,15 @@ fn find_node_in_subtree_with_location(node: &AstNode, byte_offset: usize) -> Opt
         }
         AstNode::Span {
             value,
-            attributes, 
+            attributes,
             location,
             ..
         } => {
             // Check attributes first (more specific)
             for attribute in attributes {
-                if let Some((found, loc)) = find_node_in_subtree_with_location(attribute, byte_offset) {
+                if let Some((found, loc)) =
+                    find_node_in_subtree_with_location(attribute, byte_offset)
+                {
                     return Some((found, loc));
                 }
             }
@@ -155,9 +173,7 @@ fn find_node_in_subtree_with_location(node: &AstNode, byte_offset: usize) -> Opt
 }
 
 // Helper function to find location in expressions
-fn get_expr_location_at_offset(expr: &aml_parser::Expr, byte_offset: usize) -> Option<aml_core::Location> {
-    use aml_parser::Expr;
-    
+fn get_expr_location_at_offset(expr: &Expr, byte_offset: usize) -> Option<aml_core::Location> {
     match expr {
         Expr::String { location } => {
             if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
@@ -174,32 +190,21 @@ fn get_expr_location_at_offset(expr: &aml_parser::Expr, byte_offset: usize) -> O
             }
         }
         Expr::Unary { expr, .. } => get_expr_location_at_offset(expr, byte_offset),
-        Expr::Binary { lhs, rhs, .. } => {
-            get_expr_location_at_offset(lhs, byte_offset)
-                .or_else(|| get_expr_location_at_offset(rhs, byte_offset))
-        }
-        Expr::Call { fun, args } => {
-            get_expr_location_at_offset(fun, byte_offset)
-                .or_else(|| {
-                    args.iter()
-                        .find_map(|arg| get_expr_location_at_offset(arg, byte_offset))
-                })
-        }
-        Expr::ArrayIndex { lhs, index } => {
-            get_expr_location_at_offset(lhs, byte_offset)
-                .or_else(|| get_expr_location_at_offset(index, byte_offset))
-        }
-        Expr::List(exprs) => {
-            exprs.iter()
-                .find_map(|expr| get_expr_location_at_offset(expr, byte_offset))
-        }
-        Expr::Map { items } => {
-            items.iter()
-                .find_map(|(key, value)| {
-                    get_expr_location_at_offset(key, byte_offset)
-                        .or_else(|| get_expr_location_at_offset(value, byte_offset))
-                })
-        }
+        Expr::Binary { lhs, rhs, .. } => get_expr_location_at_offset(lhs, byte_offset)
+            .or_else(|| get_expr_location_at_offset(rhs, byte_offset)),
+        Expr::Call { fun, args } => get_expr_location_at_offset(fun, byte_offset).or_else(|| {
+            args.iter()
+                .find_map(|arg| get_expr_location_at_offset(arg, byte_offset))
+        }),
+        Expr::ArrayIndex { lhs, index } => get_expr_location_at_offset(lhs, byte_offset)
+            .or_else(|| get_expr_location_at_offset(index, byte_offset)),
+        Expr::List(exprs) => exprs
+            .iter()
+            .find_map(|expr| get_expr_location_at_offset(expr, byte_offset)),
+        Expr::Map { items } => items.iter().find_map(|(key, value)| {
+            get_expr_location_at_offset(key, byte_offset)
+                .or_else(|| get_expr_location_at_offset(value, byte_offset))
+        }),
         Expr::Primitive(_) => None, // Primitives don't store location
     }
 }

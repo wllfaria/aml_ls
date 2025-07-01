@@ -1,5 +1,5 @@
 ---
-source: aml-parser/src/parser.rs
+source: aml-syntax/src/parser.rs
 expression: ast
 ---
 nodes:

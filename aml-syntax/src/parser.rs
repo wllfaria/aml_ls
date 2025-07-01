@@ -4,46 +4,9 @@ use serde::Serialize;
 
 use aml_core::Location;
 use aml_token::{Element, Operator, TokenKind, Tokens};
+use crate::ast::{Ast, AstNode, Expr, Scope};
+use crate::expressions::{parse_expression};
 use crate::error::Result;
-use crate::expressions::{Expr, parse_expression};
-
-#[derive(Debug, Default)]
-pub struct Ast {
-    pub nodes: Vec<AstNode>,
-    pub variables: HashMap<String, Location>,
-    pub scopes: Vec<Scope>,
-}
-
-#[derive(Debug)]
-pub enum AstNode {
-    String {
-        value: Location,
-    },
-    Text {
-        value: Option<Box<AstNode>>,
-        attributes: Vec<AstNode>,
-        children: Vec<AstNode>,
-        location: Location,
-    },
-    Span {
-        value: Option<Box<AstNode>>,
-        attributes: Vec<AstNode>,
-        location: Location,
-    },
-    Identifier {
-        value: Location,
-    },
-    Attribute {
-        name: Box<AstNode>,
-        value: Box<Expr>,
-    },
-}
-
-#[derive(Debug, Serialize)]
-pub struct Scope {
-    pub variables: Vec<String>,
-    pub parent: Option<usize>,
-}
 
 pub struct Parser<'p> {
     scope_stack: Vec<usize>,
