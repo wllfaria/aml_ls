@@ -1,8 +1,8 @@
 use serde::Serialize;
 
 use aml_core::Location;
-use crate::token::{Operator, Primitive, Tokens};
-use crate::{Result, TokenKind};
+use aml_token::{Operator, Primitive, TokenKind, Tokens};
+use crate::Result;
 
 pub mod precedences {
     pub const INITIAL: u8 = 0;
@@ -217,7 +217,7 @@ fn parse_function(tokens: &mut Tokens, lhs: Expr) -> Result<Expr> {
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
-    use crate::lexer::Lexer;
+    use aml_token::Lexer;
 
     #[derive(Debug, Serialize)]
     pub enum SnapshotExpr<'ast> {
@@ -310,7 +310,7 @@ pub(crate) mod test {
 
     fn parse(input: &str) -> SnapshotExpr<'_> {
         let lexer = Lexer::new(input);
-        let tokens = lexer.collect::<Result<_>>().unwrap();
+        let tokens = lexer.collect::<aml_token::Result<_>>().unwrap();
         let mut tokens = Tokens::new(tokens, input.len());
         let expression = parse_expression_inner(&mut tokens, precedences::INITIAL).unwrap();
         SnapshotExpr::from_expr(expression, input)

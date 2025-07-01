@@ -1,11 +1,12 @@
 [package]
-name = "aml-parser"
+name = "aml-token"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 aml-core.workspace = true
-aml-token.workspace = true
-insta.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

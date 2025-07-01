@@ -279,10 +279,10 @@ impl Iterator for Lexer<'_> {
 
 #[cfg(test)]
 mod tests {
+    use aml_core::Location;
     use serde::Serialize;
 
     use super::*;
-    use aml_core::Location;
 
     #[derive(Debug, Serialize)]
     struct SnapshotToken<'tok> {
@@ -335,3 +335,4 @@ vstack [width: 10, height: 3]
         insta::assert_yaml_snapshot!(tokens);
     }
 }
+

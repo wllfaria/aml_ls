@@ -132,7 +132,6 @@ impl From<(u8, u8, u8)> for Hex {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, PartialOrd)]
 pub struct Token(pub TokenKind, pub Location);
 

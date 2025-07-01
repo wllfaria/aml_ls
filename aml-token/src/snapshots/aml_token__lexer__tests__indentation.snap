@@ -1,5 +1,5 @@
 ---
-source: aml-parser/src/lexer.rs
+source: aml-token/src/lexer.rs
 expression: tokens
 ---
 - kind: Newline

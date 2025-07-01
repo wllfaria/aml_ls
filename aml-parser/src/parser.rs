@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use aml_core::Location;
-use crate::TokenKind;
+use aml_token::{Element, Operator, TokenKind, Tokens};
 use crate::error::Result;
 use crate::expressions::{Expr, parse_expression};
-use crate::token::{Element, Operator, Tokens};
 
 #[derive(Debug, Default)]
 pub struct Ast {
@@ -280,7 +279,7 @@ mod tests {
 
     use super::*;
     use crate::expressions::test::SnapshotExpr;
-    use crate::lexer::Lexer;
+    use aml_token::Lexer;
 
     #[derive(Debug, Serialize)]
     struct SnapshotAst<'ast> {
@@ -383,7 +382,7 @@ mod tests {
     }
 
     fn get_ast(template: &str) -> SnapshotAst<'_> {
-        let tokens = Lexer::new(template).collect::<Result<Vec<_>>>().unwrap();
+        let tokens = Lexer::new(template).collect::<aml_token::Result<Vec<_>>>().unwrap();
         let tokens = Tokens::new(tokens, template.len());
         let parser = Parser::new(tokens, template);
         SnapshotAst::from_ast(parser.parse().unwrap(), template)
@@ -396,7 +395,7 @@ mod tests {
 text "Hello"
     span "World""#;
 
-        let tokens = Lexer::new(template).collect::<Result<Vec<_>>>().unwrap();
+        let tokens = Lexer::new(template).collect::<aml_token::Result<Vec<_>>>().unwrap();
         let tokens = Tokens::new(tokens, template.len());
         let parser = Parser::new(tokens, template);
 

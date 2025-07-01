@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use aml_parser::{Ast, AstNode, Lexer, Parser, Tokens};
+use aml_parser::{Ast, AstNode, Parser};
+use aml_token::{Lexer, Tokens};
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
