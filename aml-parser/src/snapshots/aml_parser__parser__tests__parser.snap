@@ -7,8 +7,8 @@ nodes:
       value:
         String:
           value:
-            start_byte: 5
-            end_byte: 12
+            start_byte: 7
+            end_byte: 14
           text: "\"Hello\""
       attributes: []
       children:
@@ -16,17 +16,17 @@ nodes:
             value:
               String:
                 value:
-                  start_byte: 22
-                  end_byte: 29
+                  start_byte: 24
+                  end_byte: 31
                 text: "\"World\""
             attributes: []
             location:
-              start_byte: 17
-              end_byte: 21
+              start_byte: 19
+              end_byte: 23
             text: span
       location:
-        start_byte: 0
-        end_byte: 4
+        start_byte: 2
+        end_byte: 6
       text: text
 variables: {}
 scopes:

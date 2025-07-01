@@ -1,0 +1,23 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+Map:
+  items:
+    - - Ident:
+          location:
+            start_byte: 1
+            end_byte: 2
+          value: a
+      - Primitive:
+          Int: 1
+    - - Ident:
+          location:
+            start_byte: 7
+            end_byte: 8
+          value: b
+      - Ident:
+          location:
+            start_byte: 10
+            end_byte: 11
+          value: c

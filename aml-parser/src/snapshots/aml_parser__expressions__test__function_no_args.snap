@@ -8,4 +8,5 @@ Call:
       location:
         start_byte: 0
         end_byte: 1
+      value: f
   args: []

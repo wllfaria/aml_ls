@@ -10,6 +10,7 @@ ArrayIndex:
           location:
             start_byte: 0
             end_byte: 5
+          value: array
       index:
         Primitive:
           Int: 0

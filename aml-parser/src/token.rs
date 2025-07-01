@@ -31,7 +31,7 @@ pub enum TokenKind {
     Primitive(Primitive),
     // TODO: store the string
     Identifier(Location),
-    String,
+    String(Location),
 }
 
 #[derive(Debug, Clone, Serialize, Copy, PartialEq, PartialOrd)]
@@ -260,7 +260,7 @@ impl Tokens {
         }
     }
 
-    fn consume_newlines(&mut self) {
+    pub fn consume_newlines(&mut self) {
         loop {
             if matches!(
                 self.inner.get(self.index),
@@ -273,19 +273,19 @@ impl Tokens {
         }
     }
 
-    fn consume_all_whitespace(&mut self) {
+    pub fn consume_all_whitespace(&mut self) {
         loop {
             if matches!(
-                self.inner.get(self.index),
-                Some(Token(TokenKind::Indent(_), _))
+                self.inner.get(self.index).map(|t| t.0),
+                Some(TokenKind::Indent(_))
             ) {
                 self.index += 1;
                 continue;
             }
 
             if matches!(
-                self.inner.get(self.index),
-                Some(Token(TokenKind::Newline, _))
+                self.inner.get(self.index).map(|t| t.0),
+                Some(TokenKind::Newline)
             ) {
                 self.index += 1;
                 continue;
@@ -316,7 +316,7 @@ impl Tokens {
         }
     }
 
-    fn read_indent(&mut self) -> Option<usize> {
+    pub fn read_indent(&mut self) -> Option<usize> {
         match self.peek().kind() {
             TokenKind::Indent(indent) => {
                 self.consume();

@@ -8,6 +8,7 @@ Call:
       location:
         start_byte: 0
         end_byte: 3
+      value: fun
   args:
     - Primitive:
         Int: 1
@@ -17,6 +18,7 @@ Call:
             location:
               start_byte: 7
               end_byte: 8
+            value: a
         rhs:
           Binary:
             lhs:

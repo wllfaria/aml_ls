@@ -1,0 +1,17 @@
+---
+source: aml-parser/src/expressions.rs
+expression: parse(input)
+---
+ArrayIndex:
+  lhs:
+    Ident:
+      location:
+        start_byte: 0
+        end_byte: 3
+      value: map
+  index:
+    String:
+      location:
+        start_byte: 4
+        end_byte: 9
+      value: "'key'"

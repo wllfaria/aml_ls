@@ -3,13 +3,15 @@ source: aml-parser/src/expressions.rs
 expression: parse(input)
 ---
 List:
-  - Primitive:
-      Int: 1
-  - Primitive:
-      Int: 2
-  - Ident:
-      location:
-        start_byte: 7
-        end_byte: 8
-  - Primitive:
-      Int: 4
+  items:
+    - Primitive:
+        Int: 1
+    - Primitive:
+        Int: 2
+    - Ident:
+        location:
+          start_byte: 7
+          end_byte: 8
+        value: a
+    - Primitive:
+        Int: 4

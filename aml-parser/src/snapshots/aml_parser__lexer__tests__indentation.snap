@@ -42,7 +42,10 @@ expression: tokens
     start_byte: 32
     end_byte: 33
   value: " "
-- kind: String
+- kind:
+    String:
+      start_byte: 33
+      end_byte: 37
   location:
     start_byte: 33
     end_byte: 37
@@ -99,7 +102,10 @@ expression: tokens
     start_byte: 105
     end_byte: 106
   value: " "
-- kind: String
+- kind:
+    String:
+      start_byte: 106
+      end_byte: 111
   location:
     start_byte: 106
     end_byte: 111

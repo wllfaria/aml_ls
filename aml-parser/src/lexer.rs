@@ -185,7 +185,9 @@ impl<'lex> Lexer<'lex> {
             match self.chars.next() {
                 Some((end_byte, next)) if next == delimiter => {
                     // add +1 to include the closing delimiter in the token
-                    break TokenKind::String.into_token(start_byte, end_byte + 1);
+                    let end_byte = end_byte + 1;
+                    let location = (start_byte, end_byte).into();
+                    break TokenKind::String(location).into_token(start_byte, end_byte);
                 }
                 // Handle escape sequences
                 Some((_, '\\')) => {
