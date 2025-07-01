@@ -2,10 +2,11 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
+use aml_core::Location;
 use crate::TokenKind;
 use crate::error::Result;
 use crate::expressions::{Expr, parse_expression};
-use crate::token::{Element, Location, Operator, Tokens};
+use crate::token::{Element, Operator, Tokens};
 
 #[derive(Debug, Default)]
 pub struct Ast {
@@ -280,7 +281,6 @@ mod tests {
     use super::*;
     use crate::expressions::test::SnapshotExpr;
     use crate::lexer::Lexer;
-    use crate::token::Primitive;
 
     #[derive(Debug, Serialize)]
     struct SnapshotAst<'ast> {

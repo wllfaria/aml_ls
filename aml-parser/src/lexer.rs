@@ -282,7 +282,7 @@ mod tests {
     use serde::Serialize;
 
     use super::*;
-    use crate::token::Location;
+    use aml_core::Location;
 
     #[derive(Debug, Serialize)]
     struct SnapshotToken<'tok> {

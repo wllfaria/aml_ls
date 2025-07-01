@@ -1,12 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["aml-parser", "aml-docs"]
+members = ["aml-core", "aml-parser", "aml-docs"]
 
 [workspace.package]
 edition = "2024"
 version = "0.1.0"
 
 [workspace.dependencies]
+aml-core = { path = "aml-core" }
 aml-parser = { path = "aml-parser" }
 aml-docs = { path = "aml-docs" }
 thiserror = "2.0.12"
@@ -19,6 +20,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+aml-core.workspace = true
 aml-parser.workspace = true
 aml-docs.workspace = true
 thiserror.workspace = true

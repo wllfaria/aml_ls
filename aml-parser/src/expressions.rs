@@ -1,7 +1,8 @@
 use serde::Serialize;
 
+use aml_core::Location;
 use crate::token::{Operator, Primitive, Tokens};
-use crate::{Location, Result, TokenKind};
+use crate::{Result, TokenKind};
 
 pub mod precedences {
     pub const INITIAL: u8 = 0;
