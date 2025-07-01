@@ -115,6 +115,7 @@ impl<'p> Parser<'p> {
         let node = match self.tokens.peek_skip_indent().kind() {
             TokenKind::Element(element) => self.parse_element(element, current_indent)?,
             TokenKind::String(_) => self.parse_string()?,
+            TokenKind::Identifier(_) => self.parse_identifier()?,
             t => todo!("unhandled token in parse_node: {t:?}"),
         };
 

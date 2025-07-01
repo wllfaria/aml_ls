@@ -78,74 +78,122 @@ impl LanguageServer for Backend {
         self.files.write().await.insert(uri, file_info);
     }
 
-    async fn did_change(&self, _: DidChangeTextDocumentParams) {}
+    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        let uri = params.text_document.uri;
+        let mut files = self.files.write().await;
+        let file = files.get_mut(&uri);
 
-    async fn did_close(&self, _: DidCloseTextDocumentParams) {}
+        let Some(file) = file else { return };
+
+        for change in params.content_changes {
+            if let Some(range) = change.range {
+                // this is an incremental update. We apply the change to our stored content.
+                let start = position_to_byte_offset(&file.content, range.start);
+                let end = position_to_byte_offset(&file.content, range.end);
+                file.content.replace_range(start..end, &change.text);
+            } else {
+                // this is a full update. The client has sent the entire document content.
+                file.content = change.text;
+            }
+        }
+
+        let tokens = Lexer::new(&file.content)
+            .map(|t| t.unwrap())
+            .collect::<Vec<_>>();
+        let tokens = Tokens::new(tokens, file.content.len());
+        let parser = Parser::new(tokens, &file.content);
+        let ast = parser.parse().ok();
+
+        file.ast = ast;
+        file.version = params.text_document.version;
+    }
+
+    async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        self.files.write().await.remove(&params.text_document.uri);
+    }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let files = self.files.read().await;
 
-        let Some(file_info) = files.get(&uri) else {
-            return Ok(None);
-        };
+        let Some(file_info) = files.get(&uri) else { return Ok(None) };
+        let Some(ast) = &file_info.ast else { return Ok(None) };
+        let byte_offset = position_to_byte_offset(&file_info.content, position);
+        let Some((node_info, location)) = self.find_node_at_position(ast, byte_offset) else { return Ok(None) };
+        let value = self.get_hover_content(node_info);
 
-        let Some(ast) = &file_info.ast else {
-            return Ok(None);
-        };
+        let contents = HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value,
+        });
 
-        let byte_offset = self.position_to_byte_offset(&file_info.content, position);
+        let range = Some(Range {
+            start: byte_offset_to_position(&file_info.content, location.start_byte),
+            end: byte_offset_to_position(&file_info.content, location.end_byte),
+        });
 
-        if let Some(node_info) = self.find_node_at_position(ast, byte_offset) {
-            let hover_content = self.get_hover_content(node_info);
+        Ok(Some(Hover {
+            contents,
+            range,
+        }))
+    }
+}
 
-            return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: hover_content,
-                }),
-                range: None,
-            }));
+fn position_to_byte_offset(content: &str, position: Position) -> usize {
+    let mut byte_offset = 0;
+    let mut current_line = 0;
+    let mut current_char = 0;
+
+    for ch in content.chars() {
+        if current_line == position.line && current_char == position.character {
+            return byte_offset;
         }
 
-        tracing::debug!(
-            "No node found at position {}:{} (byte offset: {byte_offset})",
-            position.line,
-            position.character,
-        );
-        Ok(None)
+        if ch == '\n' {
+            current_line += 1;
+            current_char = 0;
+        } else {
+            current_char += 1;
+        }
+
+        byte_offset += ch.len_utf8();
+    }
+
+    byte_offset
+}
+
+fn byte_offset_to_position(content: &str, byte_offset: usize) -> Position {
+    let mut current_line = 0;
+    let mut current_char = 0;
+    let mut current_byte = 0;
+
+    for ch in content.chars() {
+        if current_byte >= byte_offset {
+            break;
+        }
+
+        if ch == '\n' {
+            current_line += 1;
+            current_char = 0;
+        } else {
+            current_char += 1;
+        }
+
+        current_byte += ch.len_utf8();
+    }
+
+    Position {
+        line: current_line,
+        character: current_char,
     }
 }
 
 impl Backend {
-    fn position_to_byte_offset(&self, content: &str, position: Position) -> usize {
-        let mut byte_offset = 0;
-        let mut current_line = 0;
-        let mut current_char = 0;
-
-        for ch in content.chars() {
-            if current_line == position.line && current_char == position.character {
-                return byte_offset;
-            }
-
-            if ch == '\n' {
-                current_line += 1;
-                current_char = 0;
-            } else {
-                current_char += 1;
-            }
-
-            byte_offset += ch.len_utf8();
-        }
-
-        byte_offset
-    }
-
-    fn find_node_at_position<'a>(&self, ast: &'a Ast, byte_offset: usize) -> Option<&'a AstNode> {
+    fn find_node_at_position<'a>(&self, ast: &'a Ast, byte_offset: usize) -> Option<(&'a AstNode, aml_parser::Location)> {
         for node in &ast.nodes {
-            if let Some(found) = find_node_in_subtree(node, byte_offset) {
-                return Some(found);
+            if let Some((found_node, location)) = find_node_in_subtree_with_location(node, byte_offset) {
+                return Some((found_node, location));
             }
         }
         None
@@ -156,58 +204,151 @@ impl Backend {
             AstNode::Text { .. } => self.docs.text.into(),
             AstNode::Span { .. } => self.docs.span.into(),
             AstNode::String { .. } => "String literal".into(),
-            _ => todo!(),
+            AstNode::Identifier { .. } => "Identifier".into(),
+            AstNode::Attribute { name, .. } => {
+                if let AstNode::Identifier { .. } = name.as_ref() {
+                    "Attribute".into()
+                } else {
+                    "Attribute".into()
+                }
+            }
         }
     }
 }
 
-fn find_node_in_subtree(node: &AstNode, byte_offset: usize) -> Option<&AstNode> {
+fn find_node_in_subtree_with_location(node: &AstNode, byte_offset: usize) -> Option<(&AstNode, aml_parser::Location)> {
     match node {
         AstNode::Text {
             value,
+            attributes,
             children,
             location,
             ..
         } => {
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
-                return Some(node);
-            }
-
-            if let Some(value_node) = value
-                && let AstNode::String { value: location } = value_node.as_ref()
-                && byte_offset >= location.start_byte
-                && byte_offset <= location.end_byte
-            {
-                return Some(node);
-            }
-
-            for child in children {
-                if let Some(found) = find_node_in_subtree(child, byte_offset) {
-                    return Some(found);
+            // Check attributes first (more specific)
+            for attribute in attributes {
+                if let Some((found, loc)) = find_node_in_subtree_with_location(attribute, byte_offset) {
+                    return Some((found, loc));
                 }
+            }
+
+            // Check value node
+            if let Some(value_node) = value
+                && let Some((found, loc)) = find_node_in_subtree_with_location(value_node, byte_offset)
+            {
+                return Some((found, loc));
+            }
+
+            // Check children
+            for child in children {
+                if let Some((found, loc)) = find_node_in_subtree_with_location(child, byte_offset) {
+                    return Some((found, loc));
+                }
+            }
+
+            // Finally check if we're in the text element itself
+            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+                return Some((node, *location));
             }
         }
         AstNode::Span {
-            value, location, ..
+            value,
+            attributes, 
+            location,
+            ..
         } => {
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
-                return Some(node);
+            // Check attributes first (more specific)
+            for attribute in attributes {
+                if let Some((found, loc)) = find_node_in_subtree_with_location(attribute, byte_offset) {
+                    return Some((found, loc));
+                }
             }
 
+            // Check value
             if let Some(value) = value
-                && let Some(node) = find_node_in_subtree(value, byte_offset)
+                && let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset)
             {
-                return Some(node);
+                return Some((found, loc));
+            }
+
+            // Finally check if we're in the span element itself
+            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+                return Some((node, *location));
             }
         }
         AstNode::String { value } => {
             if byte_offset >= value.start_byte && byte_offset <= value.end_byte {
-                return Some(node);
+                return Some((node, *value));
             }
         }
-        _ => todo!(),
+        AstNode::Identifier { value } => {
+            if byte_offset >= value.start_byte && byte_offset <= value.end_byte {
+                return Some((node, *value));
+            }
+        }
+        AstNode::Attribute { name, value } => {
+            // Check attribute name
+            if let Some((found, loc)) = find_node_in_subtree_with_location(name, byte_offset) {
+                return Some((found, loc));
+            }
+
+            // Check if position is in attribute value
+            if let Some(location) = get_expr_location_at_offset(value, byte_offset) {
+                return Some((node, location)); // Return the attribute node with the expression location
+            }
+        }
     }
     None
+}
+
+// Helper function to find location in expressions
+fn get_expr_location_at_offset(expr: &aml_parser::Expr, byte_offset: usize) -> Option<aml_parser::Location> {
+    use aml_parser::Expr;
+    
+    match expr {
+        Expr::String { location } => {
+            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+                Some(*location)
+            } else {
+                None
+            }
+        }
+        Expr::Ident { location } => {
+            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+                Some(*location)
+            } else {
+                None
+            }
+        }
+        Expr::Unary { expr, .. } => get_expr_location_at_offset(expr, byte_offset),
+        Expr::Binary { lhs, rhs, .. } => {
+            get_expr_location_at_offset(lhs, byte_offset)
+                .or_else(|| get_expr_location_at_offset(rhs, byte_offset))
+        }
+        Expr::Call { fun, args } => {
+            get_expr_location_at_offset(fun, byte_offset)
+                .or_else(|| {
+                    args.iter()
+                        .find_map(|arg| get_expr_location_at_offset(arg, byte_offset))
+                })
+        }
+        Expr::ArrayIndex { lhs, index } => {
+            get_expr_location_at_offset(lhs, byte_offset)
+                .or_else(|| get_expr_location_at_offset(index, byte_offset))
+        }
+        Expr::List(exprs) => {
+            exprs.iter()
+                .find_map(|expr| get_expr_location_at_offset(expr, byte_offset))
+        }
+        Expr::Map { items } => {
+            items.iter()
+                .find_map(|(key, value)| {
+                    get_expr_location_at_offset(key, byte_offset)
+                        .or_else(|| get_expr_location_at_offset(value, byte_offset))
+                })
+        }
+        Expr::Primitive(_) => None, // Primitives don't store location
+    }
 }
 
 fn init_tracing() -> std::result::Result<(), Box<dyn std::error::Error>> {
