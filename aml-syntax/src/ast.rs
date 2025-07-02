@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use serde::Serialize;
+
 use aml_core::Location;
+use serde::Serialize;
 
 #[derive(Debug, Default)]
 pub struct Ast {
@@ -30,7 +31,12 @@ pub enum AstNode {
     },
     Attribute {
         name: Box<AstNode>,
-        value: Box<Expr>,
+        value: Expr,
+    },
+    Declaration {
+        name: Box<AstNode>,
+        value: Expr,
+        location: Location,
     },
 }
 

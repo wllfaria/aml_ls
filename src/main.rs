@@ -1,5 +1,4 @@
 mod core;
-mod error;
 mod features;
 mod server;
 

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use aml_semantic::{SemanticAnalyzer, SemanticInfo};
 use aml_syntax::{Ast, Parser};
 use aml_token::{Lexer, Tokens};
 use tokio::sync::RwLock;
@@ -9,15 +10,17 @@ use tower_lsp::lsp_types::*;
 #[derive(Debug)]
 pub struct FileInfo {
     pub content: String,
-    pub ast: Option<Ast>,
+    pub ast: Ast,
+    pub semantic_info: SemanticInfo,
     pub version: i32,
 }
 
 impl FileInfo {
-    pub fn new(content: String, ast: Option<Ast>, version: i32) -> Self {
+    pub fn new(content: String, ast: Ast, semantic_info: SemanticInfo, version: i32) -> Self {
         Self {
             ast,
             content,
+            semantic_info,
             version,
         }
     }
@@ -44,8 +47,8 @@ impl DocumentManager {
         let content = params.text_document.text;
         let version = params.text_document.version;
 
-        let ast = self.parse_content(&content);
-        let file_info = FileInfo::new(content, ast, version);
+        let (ast, semantic_info) = self.parse_and_analyze_content(&content);
+        let file_info = FileInfo::new(content, ast, semantic_info, version);
 
         self.files.write().await.insert(uri, file_info);
     }
@@ -69,8 +72,9 @@ impl DocumentManager {
             }
         }
 
-        // Reparse the updated content
-        file.ast = self.parse_content(&file.content);
+        let (ast, semantic_info) = self.parse_and_analyze_content(&file.content);
+        file.ast = ast;
+        file.semantic_info = semantic_info;
         file.version = params.text_document.version;
     }
 
@@ -78,13 +82,16 @@ impl DocumentManager {
         self.files.write().await.remove(&params.text_document.uri);
     }
 
-    fn parse_content(&self, content: &str) -> Option<Ast> {
-        let tokens = Lexer::new(content)
-            .map(|r| r.ok())
-            .collect::<Option<Vec<_>>>()?;
+    fn parse_and_analyze_content(&self, content: &str) -> (Ast, SemanticInfo) {
+        let tokens = Lexer::new(content).collect();
         let tokens = Tokens::new(tokens, content.len());
-        let parser = Parser::new(tokens, content);
-        parser.parse().ok()
+        let parser = Parser::new(tokens);
+        let ast = parser.parse();
+
+        let mut analyzer = SemanticAnalyzer::new(content);
+        let semantic_info = analyzer.analyze(&ast);
+
+        (ast, semantic_info)
     }
 
     pub fn position_to_byte_offset(&self, content: &str, position: Position) -> usize {
@@ -136,4 +143,3 @@ impl DocumentManager {
         }
     }
 }
-

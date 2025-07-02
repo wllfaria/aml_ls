@@ -1,5 +1,5 @@
-use serde::Serialize;
 use aml_core::Location;
+use serde::Serialize;
 
 pub trait IntoToken {
     fn into_token(self, start_byte: usize, end_byte: usize) -> Token;
@@ -194,7 +194,7 @@ impl Tokens {
             .unwrap_or(Token(TokenKind::Eof, (self.eof - 1..self.eof).into()))
     }
 
-    fn consume_indent(&mut self) {
+    pub fn consume_indent(&mut self) {
         loop {
             if matches!(
                 self.inner.get(self.index),

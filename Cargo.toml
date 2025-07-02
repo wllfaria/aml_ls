@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["aml-core", "aml-token", "aml-syntax", "aml-docs"]
+members = ["aml-core", "aml-token", "aml-syntax", "aml-semantic", "aml-docs"]
 
 [workspace.package]
 edition = "2024"
@@ -10,6 +10,7 @@ version = "0.1.0"
 aml-core = { path = "aml-core" }
 aml-token = { path = "aml-token" }
 aml-syntax = { path = "aml-syntax" }
+aml-semantic = { path = "aml-semantic" }
 aml-docs = { path = "aml-docs" }
 thiserror = "2.0.12"
 insta = { version = "1.43.1", features = ["yaml"] }
@@ -24,6 +25,7 @@ edition.workspace = true
 aml-core.workspace = true
 aml-token.workspace = true
 aml-syntax.workspace = true
+aml-semantic.workspace = true
 aml-docs.workspace = true
 thiserror.workspace = true
 tokio = { version = "1.45.1", features = ["io-std", "macros", "rt", "rt-multi-thread"] }

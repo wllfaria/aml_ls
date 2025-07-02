@@ -1,7 +1,6 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::error::Result;
 use crate::token::{Element, IntoToken, LexError, Operator, Primitive, Token, TokenKind};
 
 pub struct Lexer<'lex> {
@@ -17,7 +16,7 @@ impl<'lex> Lexer<'lex> {
         }
     }
 
-    fn next_token(&mut self) -> Result<Token> {
+    fn next_token(&mut self) -> Token {
         let (index, curr) = match self.chars.next() {
             None => return self.eof(),
             Some(curr) => curr,
@@ -38,68 +37,68 @@ impl<'lex> Lexer<'lex> {
             }
             ('&', Some('&')) => {
                 let _ = self.chars.next();
-                Ok(Operator::And.into_token(index, index + 2))
+                Operator::And.into_token(index, index + 2)
             }
             ('|', Some('|')) => {
                 let _ = self.chars.next();
-                Ok(Operator::Or.into_token(index, index + 2))
+                Operator::Or.into_token(index, index + 2)
             }
             ('=', Some('=')) => {
                 let _ = self.chars.next();
-                Ok(Operator::EqualEqual.into_token(index, index + 2))
+                Operator::EqualEqual.into_token(index, index + 2)
             }
             ('!', Some('=')) => {
                 let _ = self.chars.next();
-                Ok(Operator::NotEqual.into_token(index, index + 2))
+                Operator::NotEqual.into_token(index, index + 2)
             }
             ('>', Some('=')) => {
                 let _ = self.chars.next();
-                Ok(Operator::GreaterThanOrEqual.into_token(index, index + 2))
+                Operator::GreaterThanOrEqual.into_token(index, index + 2)
             }
             ('<', Some('=')) => {
                 let _ = self.chars.next();
-                Ok(Operator::LessThanOrEqual.into_token(index, index + 2))
+                Operator::LessThanOrEqual.into_token(index, index + 2)
             }
             ('-', Some('>')) => {
                 let _ = self.chars.next();
-                Ok(Operator::Association.into_token(index, index + 2))
+                Operator::Association.into_token(index, index + 2)
             }
 
-            ('(', _) => Ok(Operator::LParen.into_token(index, index + 1)),
-            (')', _) => Ok(Operator::RParen.into_token(index, index + 1)),
-            ('[', _) => Ok(Operator::LBracket.into_token(index, index + 1)),
-            (']', _) => Ok(Operator::RBracket.into_token(index, index + 1)),
-            ('{', _) => Ok(Operator::LCurly.into_token(index, index + 1)),
-            ('}', _) => Ok(Operator::RCurly.into_token(index, index + 1)),
-            (':', _) => Ok(Operator::Colon.into_token(index, index + 1)),
-            (',', _) => Ok(Operator::Comma.into_token(index, index + 1)),
-            ('.', _) => Ok(Operator::Dot.into_token(index, index + 1)),
-            ('!', _) => Ok(Operator::Not.into_token(index, index + 1)),
-            ('+', _) => Ok(Operator::Plus.into_token(index, index + 1)),
-            ('-', _) => Ok(Operator::Minus.into_token(index, index + 1)),
-            ('*', _) => Ok(Operator::Mul.into_token(index, index + 1)),
-            ('/', _) => Ok(Operator::Div.into_token(index, index + 1)),
-            ('%', _) => Ok(Operator::Mod.into_token(index, index + 1)),
-            ('>', _) => Ok(Operator::GreaterThan.into_token(index, index + 1)),
-            ('<', _) => Ok(Operator::LessThan.into_token(index, index + 1)),
-            ('?', _) => Ok(Operator::Either.into_token(index, index + 1)),
-            ('=', _) => Ok(TokenKind::Equal.into_token(index, index + 1)),
-            ('\n', _) => Ok(TokenKind::Newline.into_token(index, index + 1)),
-            ('@', _) => Ok(TokenKind::Component.into_token(index, index + 1)),
-            ('$', _) => Ok(TokenKind::ComponentSlot.into_token(index, index + 1)),
+            ('(', _) => Operator::LParen.into_token(index, index + 1),
+            (')', _) => Operator::RParen.into_token(index, index + 1),
+            ('[', _) => Operator::LBracket.into_token(index, index + 1),
+            (']', _) => Operator::RBracket.into_token(index, index + 1),
+            ('{', _) => Operator::LCurly.into_token(index, index + 1),
+            ('}', _) => Operator::RCurly.into_token(index, index + 1),
+            (':', _) => Operator::Colon.into_token(index, index + 1),
+            (',', _) => Operator::Comma.into_token(index, index + 1),
+            ('.', _) => Operator::Dot.into_token(index, index + 1),
+            ('!', _) => Operator::Not.into_token(index, index + 1),
+            ('+', _) => Operator::Plus.into_token(index, index + 1),
+            ('-', _) => Operator::Minus.into_token(index, index + 1),
+            ('*', _) => Operator::Mul.into_token(index, index + 1),
+            ('/', _) => Operator::Div.into_token(index, index + 1),
+            ('%', _) => Operator::Mod.into_token(index, index + 1),
+            ('>', _) => Operator::GreaterThan.into_token(index, index + 1),
+            ('<', _) => Operator::LessThan.into_token(index, index + 1),
+            ('?', _) => Operator::Either.into_token(index, index + 1),
+            ('=', _) => TokenKind::Equal.into_token(index, index + 1),
+            ('\n', _) => TokenKind::Newline.into_token(index, index + 1),
+            ('@', _) => TokenKind::Component.into_token(index, index + 1),
+            ('$', _) => TokenKind::ComponentSlot.into_token(index, index + 1),
 
-            ('a'..='z' | 'A'..='Z' | '_', _) => Ok(self.lex_identifier(index)),
-            ('0'..='9', _) => Ok(self.lex_number(index)),
-            ('"' | '\'', _) => Ok(self.lex_string(curr, index)),
-            _ if curr.is_whitespace() => Ok(self.lex_indent(index)),
-            ('#', Some('0'..='9' | 'a'..='f' | 'A'..='F')) => Ok(self.lex_hex_value(index)),
+            ('a'..='z' | 'A'..='Z' | '_', _) => self.lex_identifier(index),
+            ('0'..='9', _) => self.lex_number(index),
+            ('"' | '\'', _) => self.lex_string(curr, index),
+            _ if curr.is_whitespace() => self.lex_indent(index),
+            ('#', Some('0'..='9' | 'a'..='f' | 'A'..='F')) => self.lex_hex_value(index),
             _ => self.eof(),
         }
     }
 
-    fn eof(&self) -> Result<Token> {
+    fn eof(&self) -> Token {
         let location = self.content.len()..self.content.len();
-        Ok(Token(TokenKind::Eof, location.into()))
+        Token(TokenKind::Eof, location.into())
     }
 
     fn lex_identifier(&mut self, start_byte: usize) -> Token {
@@ -267,12 +266,12 @@ impl<'lex> Lexer<'lex> {
 }
 
 impl Iterator for Lexer<'_> {
-    type Item = Result<Token>;
+    type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_token() {
-            Ok(Token(TokenKind::Eof, _)) => None,
-            result => Some(result),
+            Token(TokenKind::Eof, _) => None,
+            token => Some(token),
         }
     }
 }
@@ -313,7 +312,6 @@ vstack        // 0 spaces
 "#;
 
         let tokens = Lexer::new(template)
-            .map(|t| t.unwrap())
             .map(|t| SnapshotToken::from_token(t, template))
             .collect::<Vec<_>>();
 
@@ -328,11 +326,9 @@ vstack [width: 10, height: 3]
     border [height: -10]
 "#;
         let tokens = Lexer::new(template)
-            .map(|t| t.unwrap())
             .map(|t| SnapshotToken::from_token(t, template))
             .collect::<Vec<_>>();
 
         insta::assert_yaml_snapshot!(tokens);
     }
 }
-

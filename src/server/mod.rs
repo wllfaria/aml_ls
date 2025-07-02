@@ -12,7 +12,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::core::document_manager::DocumentManager;
-use crate::features::hover::HoverProvider;
+use crate::features::hover::{HoverContext, HoverProvider};
 
 #[derive(Debug)]
 pub struct Backend {
@@ -23,22 +23,16 @@ pub struct Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
-        tracing::info!("LSP initialize called");
-        tracing::debug!("Initialize params: {:#?}", params);
-
+    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
             server_info: None,
             capabilities: capabilities::server_capabilities(),
         })
     }
 
-    async fn initialized(&self, _: InitializedParams) {
-        tracing::info!("LSP client initialized successfully");
-    }
+    async fn initialized(&self, _: InitializedParams) {}
 
     async fn shutdown(&self) -> Result<()> {
-        tracing::info!("LSP shutdown requested");
         Ok(())
     }
 
@@ -55,7 +49,12 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
-        self.hover_provider.hover(&self.document_manager, params).await
+        self.hover_provider
+            .hover(HoverContext {
+                document_manager: &self.document_manager,
+                params,
+            })
+            .await
     }
 }
 

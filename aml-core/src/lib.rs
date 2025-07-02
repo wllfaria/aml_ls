@@ -1,5 +1,5 @@
-pub mod location;
 pub mod diagnostics;
+pub mod location;
 
-pub use location::Location;
 pub use diagnostics::{Diagnostic, Severity};
+pub use location::Location;

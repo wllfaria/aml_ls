@@ -38,6 +38,18 @@ name = "aml-docs"
 version = "0.1.0"
 
 [[package]]
+name = "aml-semantic"
+version = "0.1.0"
+dependencies = [
+ "aml-core",
+ "aml-syntax",
+ "aml-token",
+ "insta",
+ "serde",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "aml-syntax"
 version = "0.1.0"
 dependencies = [
@@ -64,6 +76,7 @@ version = "0.1.0"
 dependencies = [
  "aml-core",
  "aml-docs",
+ "aml-semantic",
  "aml-syntax",
  "aml-token",
  "clap",

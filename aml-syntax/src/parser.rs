@@ -1,45 +1,38 @@
-use std::collections::HashMap;
-
-use serde::Serialize;
-
-use aml_core::Location;
 use aml_token::{Element, Operator, TokenKind, Tokens};
-use crate::ast::{Ast, AstNode, Expr, Scope};
-use crate::expressions::{parse_expression};
-use crate::error::Result;
 
-pub struct Parser<'p> {
+use crate::ast::{Ast, AstNode, Scope};
+use crate::expressions::parse_expression;
+
+pub struct Parser {
     scope_stack: Vec<usize>,
-    content: &'p str,
     tokens: Tokens,
     ast: Ast,
 }
 
-impl<'p> Parser<'p> {
-    pub fn new(mut tokens: Tokens, content: &'p str) -> Self {
+impl Parser {
+    pub fn new(mut tokens: Tokens) -> Self {
         tokens.consume_newlines();
 
         Self {
             tokens,
-            content,
             ast: Ast::default(),
             scope_stack: Vec::new(),
         }
     }
 
-    pub fn parse(mut self) -> Result<Ast> {
+    pub fn parse(mut self) -> Ast {
         let base_indent = match self.tokens.peek().kind() {
             TokenKind::Indent(indent) => indent,
             _ => 0,
         };
 
-        self.ast.nodes = self.parse_block(base_indent)?;
+        self.ast.nodes = self.parse_block(base_indent);
 
-        Ok(self.ast)
+        self.ast
     }
 
-    fn parse_block(&mut self, block_indent: usize) -> Result<Vec<AstNode>> {
-        self.add_scope()?;
+    fn parse_block(&mut self, block_indent: usize) -> Vec<AstNode> {
+        self.add_scope();
 
         let mut nodes = vec![];
 
@@ -67,44 +60,41 @@ impl<'p> Parser<'p> {
                 break;
             }
 
-            nodes.push(self.parse_node(current_indent)?);
+            nodes.push(self.parse_node(current_indent));
         }
 
-        self.pop_scope()?;
-        Ok(nodes)
+        self.pop_scope();
+        nodes
     }
 
-    fn parse_node(&mut self, current_indent: usize) -> Result<AstNode> {
-        let node = match self.tokens.peek_skip_indent().kind() {
-            TokenKind::Element(element) => self.parse_element(element, current_indent)?,
-            TokenKind::String(_) => self.parse_string()?,
-            TokenKind::Identifier(_) => self.parse_identifier()?,
+    fn parse_node(&mut self, current_indent: usize) -> AstNode {
+        match self.tokens.peek_skip_indent().kind() {
+            TokenKind::Element(element) => self.parse_element(element, current_indent),
+            TokenKind::String(_) => self.parse_string(),
+            TokenKind::Identifier(_) => self.parse_identifier(),
+            TokenKind::Decl => self.parse_declaration(),
             t => todo!("unhandled token in parse_node: {t:?}"),
-        };
-
-        Ok(node)
+        }
     }
 
-    fn parse_element(&mut self, element: Element, current_indent: usize) -> Result<AstNode> {
-        let node = match element {
-            Element::Text => self.parse_text(current_indent)?,
-            Element::Span => self.parse_span()?,
+    fn parse_element(&mut self, element: Element, current_indent: usize) -> AstNode {
+        match element {
+            Element::Text => self.parse_text(current_indent),
+            Element::Span => self.parse_span(),
             t => todo!("unhandled element: {t:?}"),
-        };
-
-        Ok(node)
+        }
     }
 
-    fn parse_text(&mut self, current_indent: usize) -> Result<AstNode> {
+    fn parse_text(&mut self, current_indent: usize) -> AstNode {
         let text = self.tokens.next_token();
         let location = text.location();
 
         self.tokens.consume_all_whitespace();
-        let attributes = self.parse_optional_attributes()?;
+        let attributes = self.parse_optional_attributes();
 
         self.tokens.consume_all_whitespace();
         let value = match self.tokens.peek().kind() {
-            TokenKind::String(_) => Some(Box::new(self.parse_string()?)),
+            TokenKind::String(_) => Some(Box::new(self.parse_string())),
             _ => None,
         };
 
@@ -116,60 +106,77 @@ impl<'p> Parser<'p> {
         };
 
         let children = match next_indent > current_indent {
-            true => self.parse_block(next_indent)?,
+            true => self.parse_block(next_indent),
             false => vec![],
         };
 
-        Ok(AstNode::Text {
+        AstNode::Text {
             value,
             attributes,
             children,
             location,
-        })
+        }
     }
 
-    fn parse_span(&mut self) -> Result<AstNode> {
+    fn parse_span(&mut self) -> AstNode {
         let span = self.tokens.next_token();
         let location = span.location();
 
         self.tokens.consume_all_whitespace();
-        let attributes = self.parse_optional_attributes()?;
+        let attributes = self.parse_optional_attributes();
 
         self.tokens.consume_all_whitespace();
         let value = match self.tokens.peek().kind() {
-            TokenKind::String(_) => Some(Box::new(self.parse_string()?)),
+            TokenKind::String(_) => Some(Box::new(self.parse_string())),
             _ => None,
         };
 
-        Ok(AstNode::Span {
+        AstNode::Span {
             value,
             attributes,
             location,
-        })
+        }
     }
 
-    fn parse_string(&mut self) -> Result<AstNode> {
+    fn parse_string(&mut self) -> AstNode {
         let token = self.tokens.next_token();
         let value = token.location();
-        Ok(AstNode::String { value })
+        AstNode::String { value }
     }
 
-    fn parse_identifier(&mut self) -> Result<AstNode> {
+    fn parse_identifier(&mut self) -> AstNode {
         let identifier = self.tokens.next_token();
         let location = identifier.location();
-
-        Ok(AstNode::Identifier { value: location })
+        AstNode::Identifier { value: location }
     }
 
-    fn parse_optional_attributes(&mut self) -> Result<Vec<AstNode>> {
+    fn parse_declaration(&mut self) -> AstNode {
+        let keyword = self.tokens.next_token();
+        let location = keyword.location();
+
+        self.tokens.consume_indent();
+        let name = self.parse_identifier();
+
+        self.tokens.consume_indent();
+        self.tokens.consume(); // consume equal sign
+        let value = parse_expression(&mut self.tokens);
+
+        AstNode::Declaration {
+            name: Box::new(name),
+            value,
+            location,
+        }
+    }
+
+    fn parse_optional_attributes(&mut self) -> Vec<AstNode> {
         if self.tokens.peek_skip_indent().kind() == TokenKind::Operator(Operator::LBracket) {
             return self.parse_attributes();
         }
 
-        Ok(vec![])
+        vec![]
     }
 
-    fn parse_attributes(&mut self) -> Result<Vec<AstNode>> {
+    fn parse_attributes(&mut self) -> Vec<AstNode> {
         self.tokens.consume(); // consume LBracket
 
         let mut attributes = vec![];
@@ -187,7 +194,7 @@ impl<'p> Parser<'p> {
                 _ => {}
             }
 
-            let name = self.parse_identifier()?;
+            let name = self.parse_identifier();
             self.tokens.consume_all_whitespace();
 
             // TODO: this is a syntax error if there is no colon
@@ -196,17 +203,17 @@ impl<'p> Parser<'p> {
             }
 
             self.tokens.consume_all_whitespace();
-            let value = parse_expression(&mut self.tokens)?;
+            let value = parse_expression(&mut self.tokens);
 
             attributes.push(AstNode::Attribute {
                 name: Box::new(name),
-                value: Box::new(value),
+                value,
             });
 
             self.skip_optional_comma();
         }
 
-        Ok(attributes)
+        attributes
     }
 
     fn skip_optional_comma(&mut self) {
@@ -215,7 +222,7 @@ impl<'p> Parser<'p> {
         }
     }
 
-    fn add_scope(&mut self) -> Result<()> {
+    fn add_scope(&mut self) {
         let scope_id = self.ast.scopes.len();
         let parent = self.scope_stack.last().copied();
 
@@ -225,12 +232,10 @@ impl<'p> Parser<'p> {
         });
 
         self.scope_stack.push(scope_id);
-        Ok(())
     }
 
-    fn pop_scope(&mut self) -> Result<()> {
+    fn pop_scope(&mut self) {
         self.scope_stack.pop();
-        Ok(())
     }
 }
 
@@ -238,11 +243,12 @@ impl<'p> Parser<'p> {
 mod tests {
     use std::collections::HashMap;
 
+    use aml_core::Location;
+    use aml_token::Lexer;
     use serde::Serialize;
 
     use super::*;
     use crate::expressions::test::SnapshotExpr;
-    use aml_token::Lexer;
 
     #[derive(Debug, Serialize)]
     struct SnapshotAst<'ast> {
@@ -290,7 +296,12 @@ mod tests {
         },
         Attribute {
             name: Box<SnapshotAstNode<'ast>>,
-            value: Box<SnapshotExpr<'ast>>,
+            value: SnapshotExpr<'ast>,
+        },
+        Declaration {
+            name: Box<SnapshotAstNode<'ast>>,
+            value: SnapshotExpr<'ast>,
+            location: Location,
         },
     }
 
@@ -338,17 +349,26 @@ mod tests {
                 },
                 AstNode::Attribute { name, value } => Self::Attribute {
                     name: Box::new(SnapshotAstNode::from_node(*name, content)),
-                    value: Box::new(SnapshotExpr::from_expr(*value, content)),
+                    value: SnapshotExpr::from_expr(value, content),
+                },
+                AstNode::Declaration {
+                    name,
+                    value,
+                    location,
+                } => Self::Declaration {
+                    name: Box::new(SnapshotAstNode::from_node(*name, content)),
+                    value: SnapshotExpr::from_expr(value, content),
+                    location,
                 },
             }
         }
     }
 
     fn get_ast(template: &str) -> SnapshotAst<'_> {
-        let tokens = Lexer::new(template).collect::<aml_token::Result<Vec<_>>>().unwrap();
+        let tokens = Lexer::new(template).collect::<Vec<_>>();
         let tokens = Tokens::new(tokens, template.len());
-        let parser = Parser::new(tokens, template);
-        SnapshotAst::from_ast(parser.parse().unwrap(), template)
+        let parser = Parser::new(tokens);
+        SnapshotAst::from_ast(parser.parse(), template)
     }
 
     #[test]
@@ -358,11 +378,11 @@ mod tests {
 text "Hello"
     span "World""#;
 
-        let tokens = Lexer::new(template).collect::<aml_token::Result<Vec<_>>>().unwrap();
+        let tokens = Lexer::new(template).collect::<Vec<_>>();
         let tokens = Tokens::new(tokens, template.len());
-        let parser = Parser::new(tokens, template);
+        let parser = Parser::new(tokens);
 
-        let ast = SnapshotAst::from_ast(parser.parse().unwrap(), template);
+        let ast = SnapshotAst::from_ast(parser.parse(), template);
 
         insta::assert_yaml_snapshot!(ast);
     }

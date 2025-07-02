@@ -1,3 +1,4 @@
+use aml_semantic::SymbolType;
 use aml_syntax::{Ast, AstNode, Expr};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -9,6 +10,11 @@ pub struct HoverProvider {
     docs: aml_docs::Docs,
 }
 
+pub struct HoverContext<'ctx> {
+    pub document_manager: &'ctx DocumentManager,
+    pub params: HoverParams,
+}
+
 impl HoverProvider {
     pub fn new() -> Self {
         Self {
@@ -16,22 +22,23 @@ impl HoverProvider {
         }
     }
 
-    pub async fn hover(
-        &self,
-        document_manager: &DocumentManager,
-        params: HoverParams,
-    ) -> Result<Option<Hover>> {
-        let uri = params.text_document_position_params.text_document.uri;
-        let position = params.text_document_position_params.position;
-        let files = document_manager.files().read().await;
+    pub async fn hover(&self, ctx: HoverContext<'_>) -> Result<Option<Hover>> {
+        let uri = ctx.params.text_document_position_params.text_document.uri;
+        let position = ctx.params.text_document_position_params.position;
+        let files = ctx.document_manager.files().read().await;
 
         let Some(file_info) = files.get(&uri) else { return Ok(None) };
-        let Some(ast) = &file_info.ast else { return Ok(None) };
-        let byte_offset = document_manager.position_to_byte_offset(&file_info.content, position);
+        let ast = &file_info.ast;
+
+        let byte_offset = ctx
+            .document_manager
+            .position_to_byte_offset(&file_info.content, position);
+
         let Some((node_info, location)) = self.find_node_at_position(ast, byte_offset) else {
             return Ok(None);
         };
-        let value = self.get_hover_content(node_info);
+
+        let value = self.get_semantic_hover_content(node_info, &file_info.semantic_info, location);
 
         let contents = HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
@@ -39,9 +46,12 @@ impl HoverProvider {
         });
 
         let range = Some(Range {
-            start: document_manager
+            start: ctx
+                .document_manager
                 .byte_offset_to_position(&file_info.content, location.start_byte),
-            end: document_manager.byte_offset_to_position(&file_info.content, location.end_byte),
+            end: ctx
+                .document_manager
+                .byte_offset_to_position(&file_info.content, location.end_byte),
         });
 
         Ok(Some(Hover { contents, range }))
@@ -68,6 +78,7 @@ impl HoverProvider {
             AstNode::Span { .. } => self.docs.span.into(),
             AstNode::String { .. } => "String literal".into(),
             AstNode::Identifier { .. } => "Identifier".into(),
+            AstNode::Declaration { .. } => "Declaration".into(),
             AstNode::Attribute { name, .. } => {
                 if let AstNode::Identifier { .. } = name.as_ref() {
                     "Attribute".into()
@@ -75,6 +86,26 @@ impl HoverProvider {
                     "Attribute".into()
                 }
             }
+        }
+    }
+
+    fn get_semantic_hover_content(
+        &self,
+        node: &AstNode,
+        semantic_info: &aml_semantic::SemanticInfo,
+        position: aml_core::Location,
+    ) -> String {
+        // Try to get semantic information for the node at this position
+        if let Some(symbol) = semantic_info.symbol_table.find_symbol_at_position(position) {
+            match &symbol.symbol_type {
+                SymbolType::Variable { value_type } => {
+                    format!("Variable: {} (type: {:?})", symbol.name, value_type)
+                }
+                SymbolType::Element => format!("Element: {}", symbol.name),
+            }
+        } else {
+            // Fall back to basic hover content
+            self.get_hover_content(node)
         }
     }
 }
@@ -168,6 +199,7 @@ fn find_node_in_subtree_with_location(
                 return Some((node, location)); // Return the attribute node with the expression location
             }
         }
+        AstNode::Declaration { .. } => {}
     }
     None
 }

@@ -1,7 +1,6 @@
 use aml_token::{Operator, TokenKind, Tokens};
 
 use crate::ast::Expr;
-use crate::error::Result;
 
 pub mod precedences {
     pub const INITIAL: u8 = 0;
@@ -32,16 +31,16 @@ fn get_precedence(op: Operator) -> u8 {
     }
 }
 
-pub fn parse_expression(tokens: &mut Tokens) -> Result<Expr> {
+pub fn parse_expression(tokens: &mut Tokens) -> Expr {
     parse_expression_inner(tokens, precedences::INITIAL)
 }
 
-fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Result<Expr> {
+fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
     let mut lhs = match tokens.next_no_indent().0 {
-        TokenKind::Operator(Operator::LBracket) => parse_collection(tokens)?,
-        TokenKind::Operator(Operator::LCurly) => parse_map(tokens)?,
+        TokenKind::Operator(Operator::LBracket) => parse_collection(tokens),
+        TokenKind::Operator(Operator::LCurly) => parse_map(tokens),
         TokenKind::Operator(Operator::LParen) => {
-            let lhs = parse_expression_inner(tokens, precedences::INITIAL)?;
+            let lhs = parse_expression_inner(tokens, precedences::INITIAL);
             assert!(matches!(
                 tokens.next_no_indent().kind(),
                 TokenKind::Operator(Operator::RParen)
@@ -50,7 +49,7 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Result<Expr> {
         }
         TokenKind::Operator(op) => Expr::Unary {
             op,
-            expr: Box::new(parse_expression_inner(tokens, precedences::PREFIX)?),
+            expr: Box::new(parse_expression_inner(tokens, precedences::PREFIX)),
         },
 
         TokenKind::String(location) => Expr::String { location },
@@ -61,7 +60,7 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Result<Expr> {
 
     loop {
         let TokenKind::Operator(op) = tokens.peek_skip_indent().kind() else {
-            return Ok(lhs);
+            return lhs;
         };
 
         let op_precedence = get_precedence(op);
@@ -74,13 +73,13 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Result<Expr> {
 
         match op {
             Operator::LParen => {
-                lhs = parse_function(tokens, lhs)?;
+                lhs = parse_function(tokens, lhs);
                 continue;
             }
             Operator::LBracket => {
                 lhs = Expr::ArrayIndex {
                     lhs: Box::new(lhs),
-                    index: Box::new(parse_expression_inner(tokens, precedences::INITIAL)?),
+                    index: Box::new(parse_expression_inner(tokens, precedences::INITIAL)),
                 };
                 // TODO: error if no right bracket
                 let _ = tokens.next_no_indent();
@@ -89,7 +88,7 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Result<Expr> {
             _ => {}
         }
 
-        let rhs = parse_expression_inner(tokens, op_precedence)?;
+        let rhs = parse_expression_inner(tokens, op_precedence);
         lhs = Expr::Binary {
             lhs: Box::new(lhs),
             op,
@@ -97,10 +96,10 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Result<Expr> {
         };
     }
 
-    Ok(lhs)
+    lhs
 }
 
-fn parse_collection(tokens: &mut Tokens) -> Result<Expr> {
+fn parse_collection(tokens: &mut Tokens) -> Expr {
     let mut elements = vec![];
 
     loop {
@@ -119,13 +118,13 @@ fn parse_collection(tokens: &mut Tokens) -> Result<Expr> {
             }
             _ => {}
         }
-        elements.push(parse_expression_inner(tokens, precedences::INITIAL)?);
+        elements.push(parse_expression_inner(tokens, precedences::INITIAL));
     }
 
-    Ok(Expr::List(elements))
+    Expr::List(elements)
 }
 
-fn parse_map(tokens: &mut Tokens) -> Result<Expr> {
+fn parse_map(tokens: &mut Tokens) -> Expr {
     let mut items = vec![];
 
     loop {
@@ -145,19 +144,19 @@ fn parse_map(tokens: &mut Tokens) -> Result<Expr> {
             _ => {}
         }
 
-        let key = parse_expression_inner(tokens, precedences::INITIAL)?;
+        let key = parse_expression_inner(tokens, precedences::INITIAL);
         match tokens.peek_skip_indent().kind() {
             TokenKind::Operator(Operator::Colon) => tokens.consume(),
             _ => break,
         }
-        let value = parse_expression_inner(tokens, precedences::INITIAL)?;
+        let value = parse_expression_inner(tokens, precedences::INITIAL);
         items.push((key, value));
     }
 
-    Ok(Expr::Map { items })
+    Expr::Map { items }
 }
 
-fn parse_function(tokens: &mut Tokens, lhs: Expr) -> Result<Expr> {
+fn parse_function(tokens: &mut Tokens, lhs: Expr) -> Expr {
     let mut args = vec![];
 
     loop {
@@ -172,13 +171,13 @@ fn parse_function(tokens: &mut Tokens, lhs: Expr) -> Result<Expr> {
             }
             _ => {}
         }
-        args.push(parse_expression_inner(tokens, precedences::INITIAL)?);
+        args.push(parse_expression_inner(tokens, precedences::INITIAL));
     }
 
-    Ok(Expr::Call {
+    Expr::Call {
         fun: Box::new(lhs),
         args,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -279,10 +278,9 @@ pub(crate) mod test {
     }
 
     fn parse(input: &str) -> SnapshotExpr<'_> {
-        let lexer = Lexer::new(input);
-        let tokens = lexer.collect::<aml_token::Result<_>>().unwrap();
+        let tokens = Lexer::new(input).collect();
         let mut tokens = Tokens::new(tokens, input.len());
-        let expression = parse_expression_inner(&mut tokens, precedences::INITIAL).unwrap();
+        let expression = parse_expression_inner(&mut tokens, precedences::INITIAL);
         SnapshotExpr::from_expr(expression, input)
     }
 
@@ -394,4 +392,3 @@ pub(crate) mod test {
         insta::assert_yaml_snapshot!(parse(input));
     }
 }
-
