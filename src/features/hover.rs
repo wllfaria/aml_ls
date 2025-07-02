@@ -74,6 +74,7 @@ impl HoverProvider {
 
     fn get_hover_content(&self, node: &AstNode) -> String {
         match node {
+            AstNode::Primitive { value, .. } => format!("{value:?}"),
             AstNode::Text { .. } => self.docs.text.into(),
             AstNode::Span { .. } => self.docs.span.into(),
             AstNode::String { .. } => "String literal".into(),
@@ -115,14 +116,14 @@ fn find_node_in_subtree_with_location(
     byte_offset: usize,
 ) -> Option<(&AstNode, aml_core::Location)> {
     match node {
+        AstNode::Primitive { .. } => todo!(),
         AstNode::Text {
-            value,
+            values,
             attributes,
             children,
             location,
             ..
         } => {
-            // Check attributes first (more specific)
             for attribute in attributes {
                 if let Some((found, loc)) =
                     find_node_in_subtree_with_location(attribute, byte_offset)
@@ -131,22 +132,18 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            // Check value node
-            if let Some(value_node) = value
-                && let Some((found, loc)) =
-                    find_node_in_subtree_with_location(value_node, byte_offset)
-            {
-                return Some((found, loc));
+            for value in values {
+                if let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset) {
+                    return Some((found, loc));
+                }
             }
 
-            // Check children
             for child in children {
                 if let Some((found, loc)) = find_node_in_subtree_with_location(child, byte_offset) {
                     return Some((found, loc));
                 }
             }
 
-            // Finally check if we're in the text element itself
             if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
                 return Some((node, *location));
             }
@@ -157,7 +154,6 @@ fn find_node_in_subtree_with_location(
             location,
             ..
         } => {
-            // Check attributes first (more specific)
             for attribute in attributes {
                 if let Some((found, loc)) =
                     find_node_in_subtree_with_location(attribute, byte_offset)
@@ -166,14 +162,12 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            // Check value
             if let Some(value) = value
                 && let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset)
             {
                 return Some((found, loc));
             }
 
-            // Finally check if we're in the span element itself
             if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
                 return Some((node, *location));
             }

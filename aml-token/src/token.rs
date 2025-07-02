@@ -179,7 +179,7 @@ impl Tokens {
         loop {
             let token = self.next_token();
 
-            if let TokenKind::Indent(_) = token.0 {
+            if let TokenKind::Indent(_) = token.kind() {
                 continue;
             }
 
@@ -240,14 +240,6 @@ impl Tokens {
 
             break;
         }
-    }
-
-    fn previous(&self) -> Token {
-        assert!(self.index != 0);
-        self.inner
-            .get(self.index - 1)
-            .copied()
-            .unwrap_or(Token(TokenKind::Eof, (self.eof - 1..self.eof).into()))
     }
 
     pub fn peek_skip_indent(&mut self) -> Token {

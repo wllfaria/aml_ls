@@ -48,6 +48,7 @@ impl ScopeAnalyzer {
 
     fn analyze_node(&mut self, node: &AstNode) {
         match node {
+            AstNode::Primitive { .. } => {}
             AstNode::Text {
                 children, location, ..
             } => {

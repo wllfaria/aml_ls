@@ -91,9 +91,9 @@ impl SymbolTable {
 
         let mut scope_id = Some(self.current_scope);
         while let Some(id) = scope_id {
-            dbg!(id);
-            if let Some(symbol) = symbols.iter().find(|s| s.scope_id == id) {
-                dbg!(symbol);
+            // we can shadow variables in the same scope, so when finding a symbol, we need to
+            // return the last one we find, since it's the most recently declared one
+            if let Some(symbol) = symbols.iter().rev().find(|s| s.scope_id == id) {
                 return Some(symbol);
             }
             scope_id = self.scopes[id].parent;

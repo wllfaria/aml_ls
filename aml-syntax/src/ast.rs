@@ -15,8 +15,12 @@ pub enum AstNode {
     String {
         value: Location,
     },
+    Primitive {
+        location: Location,
+        value: aml_token::Primitive,
+    },
     Text {
-        value: Option<Box<AstNode>>,
+        values: Vec<AstNode>,
         attributes: Vec<AstNode>,
         children: Vec<AstNode>,
         location: Location,

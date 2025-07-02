@@ -40,11 +40,11 @@ impl Parser {
             self.tokens.consume_newlines();
 
             let current_indent = match self.tokens.peek().kind() {
+                TokenKind::Eof => break,
                 TokenKind::Indent(i) => {
                     self.tokens.consume();
                     i
                 }
-                TokenKind::Eof => break,
                 _ => 0,
             };
 
@@ -93,10 +93,33 @@ impl Parser {
         let attributes = self.parse_optional_attributes();
 
         self.tokens.consume_all_whitespace();
-        let value = match self.tokens.peek().kind() {
-            TokenKind::String(_) => Some(Box::new(self.parse_string())),
-            _ => None,
-        };
+
+        let mut values = vec![];
+        loop {
+            match self.tokens.peek().kind() {
+                TokenKind::Newline => break,
+                TokenKind::Identifier(_) => values.push(self.parse_identifier()),
+                TokenKind::Primitive(_) => values.push(self.parse_primitive()),
+                TokenKind::String(_) => values.push(self.parse_string()),
+                _ => {
+                    // Here, any other type of node is a syntax error.
+                    // The problem is, breaking out of the loop here would result in
+                    // weird state of parsing. Where the following tokens are not children of the text
+                    // so, crashing is not an option as this is a Language Server and it would be best
+                    // to somehow handle the invalid tokens until the end of the line, which is
+                    // the end of a text node.
+                    //
+                    // Example:
+                    // ```aml
+                    // text "string" identifier 1 [1, 2, 3] true
+                    // ```
+                    //
+                    // the list in the text is invalid, the boolean after it is valid.
+                    // So as an LSP, I should only report that the list is not valid there.
+                    todo!();
+                }
+            }
+        }
 
         self.tokens.consume_newlines();
 
@@ -111,11 +134,18 @@ impl Parser {
         };
 
         AstNode::Text {
-            value,
+            values,
             attributes,
             children,
             location,
         }
+    }
+
+    fn parse_primitive(&mut self) -> AstNode {
+        let primitive = self.tokens.next_token();
+        let TokenKind::Primitive(value) = primitive.kind() else { unreachable!() };
+        let location = primitive.location();
+        AstNode::Primitive { location, value }
     }
 
     fn parse_span(&mut self) -> AstNode {
@@ -273,12 +303,16 @@ mod tests {
 
     #[derive(Debug, Serialize)]
     enum SnapshotAstNode<'ast> {
+        Primitive {
+            location: Location,
+            value: aml_token::Primitive,
+        },
         String {
             value: Location,
             text: &'ast str,
         },
         Text {
-            value: Option<Box<SnapshotAstNode<'ast>>>,
+            values: Vec<SnapshotAstNode<'ast>>,
             attributes: Vec<SnapshotAstNode<'ast>>,
             children: Vec<SnapshotAstNode<'ast>>,
             location: Location,
@@ -308,17 +342,21 @@ mod tests {
     impl<'ast> SnapshotAstNode<'ast> {
         fn from_node(node: AstNode, content: &'ast str) -> Self {
             match node {
+                AstNode::Primitive { location, value } => Self::Primitive { location, value },
                 AstNode::String { value } => {
                     let text = &content[value.to_range()];
                     Self::String { value, text }
                 }
                 AstNode::Text {
-                    value,
+                    values,
                     children,
                     location,
                     attributes,
                 } => Self::Text {
-                    value: value.map(|n| Box::new(SnapshotAstNode::from_node(*n, content))),
+                    values: values
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
                     text: &content[location.to_range()],
                     attributes: attributes
                         .into_iter()
