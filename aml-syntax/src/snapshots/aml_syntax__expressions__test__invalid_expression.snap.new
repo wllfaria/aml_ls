@@ -1,0 +1,17 @@
+---
+source: aml-syntax/src/expressions.rs
+assertion_line: 456
+expression: parse(input)
+---
+Binary:
+  lhs:
+    Primitive:
+      Int: 1
+  rhs:
+    Error:
+      location:
+        start_byte: 4
+        end_byte: 5
+      token:
+        Operator: RBracket
+  op: Either

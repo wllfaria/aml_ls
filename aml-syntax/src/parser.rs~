@@ -98,7 +98,6 @@ impl Parser {
             match self.tokens.peek_skip_indent().kind() {
                 TokenKind::Newline => break,
                 TokenKind::Identifier(_) => values.push(self.parse_identifier()),
-                TokenKind::Eof => break,
                 TokenKind::Primitive(_) => {
                     values.push(self.parse_primitive());
                     self.skip_optional_comma();
@@ -179,13 +178,8 @@ impl Parser {
     }
 
     fn parse_identifier(&mut self) -> AstNode {
-        let token = self.tokens.next_token();
-        let TokenKind::Identifier(location) = token.kind() else {
-            return AstNode::Error {
-                location: token.location(),
-                token: token.kind(),
-            };
-        };
+        let identifier = self.tokens.next_token();
+        let location = identifier.location();
         AstNode::Identifier { value: location }
     }
 
@@ -230,7 +224,6 @@ impl Parser {
                     self.tokens.consume();
                     continue;
                 }
-                TokenKind::Eof => break,
                 _ => {}
             }
 
@@ -301,7 +294,7 @@ fn expression_has_error(expr: &Expr) -> bool {
         }
         Expr::String { .. } => false,
         Expr::Call { args, fun } => {
-            let args_error = args.iter().any(expression_has_error);
+            let args_error = args.iter().any(|arg| expression_has_error(arg));
             let fun_error = expression_has_error(fun);
             args_error || fun_error
         }
@@ -311,7 +304,7 @@ fn expression_has_error(expr: &Expr) -> bool {
             let index_error = expression_has_error(index);
             lhs_error || index_error
         }
-        Expr::List(items) => items.iter().any(expression_has_error),
+        Expr::List(items) => items.iter().any(|arg| expression_has_error(arg)),
         Expr::Map { items } => items
             .iter()
             .any(|(key, value)| expression_has_error(key) || expression_has_error(value)),
@@ -386,10 +379,6 @@ mod tests {
             value: SnapshotExpr<'ast>,
             location: Location,
         },
-        Error {
-            location: Location,
-            token: TokenKind,
-        },
     }
 
     impl<'ast> SnapshotAstNode<'ast> {
@@ -451,7 +440,6 @@ mod tests {
                     value: SnapshotExpr::from_expr(value, content),
                     location,
                 },
-                AstNode::Error { location, token } => Self::Error { location, token },
             }
         }
     }

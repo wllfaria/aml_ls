@@ -36,7 +36,8 @@ pub fn parse_expression(tokens: &mut Tokens) -> Expr {
 }
 
 fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
-    let mut lhs = match tokens.next_no_indent().0 {
+    let next = tokens.next_no_indent();
+    let mut lhs = match next.kind() {
         TokenKind::Operator(Operator::LBracket) => parse_collection(tokens),
         TokenKind::Operator(Operator::LCurly) => parse_map(tokens),
         TokenKind::Operator(Operator::LParen) => {
@@ -47,21 +48,110 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
             ));
             lhs
         }
-        TokenKind::Operator(op) => Expr::Unary {
-            op,
+        TokenKind::Operator(Operator::Minus) => Expr::Unary {
+            op: Operator::Not,
+            expr: Box::new(parse_expression_inner(tokens, precedences::PREFIX)),
+        },
+        TokenKind::Operator(Operator::Not) => Expr::Unary {
+            op: Operator::Not,
             expr: Box::new(parse_expression_inner(tokens, precedences::PREFIX)),
         },
 
         TokenKind::String(location) => Expr::String { location },
         TokenKind::Primitive(primitive) => Expr::Primitive(primitive),
         TokenKind::Identifier(location) => Expr::Ident { location },
-        t => todo!("{t:?}"),
+
+        // all of these are invalid
+        TokenKind::Operator(Operator::RBracket)
+        | TokenKind::Operator(Operator::RParen)
+        | TokenKind::Operator(Operator::Association)
+        | TokenKind::Operator(Operator::RCurly)
+        | TokenKind::Operator(Operator::Mul)
+        | TokenKind::Operator(Operator::Div)
+        | TokenKind::Operator(Operator::Mod)
+        | TokenKind::Operator(Operator::PlusEqual)
+        | TokenKind::Operator(Operator::MinusEqual)
+        | TokenKind::Operator(Operator::MulEqual)
+        | TokenKind::Operator(Operator::DivEqual)
+        | TokenKind::Operator(Operator::ModEqual)
+        | TokenKind::Operator(Operator::Colon)
+        | TokenKind::Operator(Operator::Comma)
+        | TokenKind::Operator(Operator::Plus)
+        | TokenKind::Operator(Operator::Dot)
+        | TokenKind::Operator(Operator::GreaterThan)
+        | TokenKind::Operator(Operator::GreaterThanOrEqual)
+        | TokenKind::Operator(Operator::LessThan)
+        | TokenKind::Operator(Operator::LessThanOrEqual)
+        | TokenKind::Operator(Operator::EqualEqual)
+        | TokenKind::Operator(Operator::NotEqual)
+        | TokenKind::Operator(Operator::Or)
+        | TokenKind::Operator(Operator::And)
+        | TokenKind::Operator(Operator::Either)
+        | TokenKind::Equal
+        | TokenKind::For
+        | TokenKind::In
+        | TokenKind::If
+        | TokenKind::Else
+        | TokenKind::Switch
+        | TokenKind::Case
+        | TokenKind::Default
+        | TokenKind::With
+        | TokenKind::As
+        | TokenKind::Component
+        | TokenKind::ComponentSlot
+        | TokenKind::Decl
+        | TokenKind::Eof
+        | TokenKind::Error(_)
+        | TokenKind::Element(_)
+        | TokenKind::Newline => {
+            return Expr::Error {
+                location: next.location(),
+                token: next.kind(),
+            };
+        }
+
+        TokenKind::Indent(_) => unreachable!(),
     };
 
     loop {
         let TokenKind::Operator(op) = tokens.peek_skip_indent().kind() else {
             return lhs;
         };
+
+        match op {
+            Operator::RBracket
+            | Operator::RParen
+            | Operator::Association
+            | Operator::RCurly
+            | Operator::Mul
+            | Operator::Div
+            | Operator::Mod
+            | Operator::PlusEqual
+            | Operator::MinusEqual
+            | Operator::MulEqual
+            | Operator::DivEqual
+            | Operator::ModEqual
+            | Operator::Colon
+            | Operator::Comma
+            | Operator::Plus
+            | Operator::Dot
+            | Operator::GreaterThan
+            | Operator::GreaterThanOrEqual
+            | Operator::LessThan
+            | Operator::LessThanOrEqual
+            | Operator::EqualEqual
+            | Operator::NotEqual
+            | Operator::Or
+            | Operator::And
+            | Operator::Either => {
+                let token = tokens.next_no_indent();
+                return Expr::Error {
+                    location: token.location(),
+                    token: token.kind(),
+                };
+            }
+            _ => {}
+        }
 
         let op_precedence = get_precedence(op);
 
@@ -222,6 +312,10 @@ pub(crate) mod test {
         Map {
             items: Vec<(SnapshotExpr<'ast>, SnapshotExpr<'ast>)>,
         },
+        Error {
+            location: Location,
+            token: TokenKind,
+        },
     }
 
     impl<'ast> SnapshotExpr<'ast> {
@@ -273,6 +367,7 @@ pub(crate) mod test {
                         })
                         .collect(),
                 },
+                Expr::Error { location, token } => Self::Error { location, token },
             }
         }
     }
@@ -389,6 +484,12 @@ pub(crate) mod test {
     #[test]
     fn test_either() {
         let input = "a ? b ? c";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_invalid_expression() {
+        let input = "1 ? ]";
         insta::assert_yaml_snapshot!(parse(input));
     }
 }

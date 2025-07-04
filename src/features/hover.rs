@@ -77,6 +77,7 @@ impl HoverProvider {
             AstNode::Primitive { value, .. } => format!("{value:?}"),
             AstNode::Text { .. } => self.docs.text.into(),
             AstNode::Span { .. } => self.docs.span.into(),
+            AstNode::Error { .. } => "error".into(),
             AstNode::String { .. } => "String literal".into(),
             AstNode::Identifier { .. } => "Identifier".into(),
             AstNode::Declaration { .. } => "Declaration".into(),
@@ -194,11 +195,11 @@ fn find_node_in_subtree_with_location(
             }
         }
         AstNode::Declaration { .. } => {}
+        AstNode::Error { .. } => {}
     }
     None
 }
 
-// Helper function to find location in expressions
 fn get_expr_location_at_offset(expr: &Expr, byte_offset: usize) -> Option<aml_core::Location> {
     match expr {
         Expr::String { location } => {
@@ -232,5 +233,6 @@ fn get_expr_location_at_offset(expr: &Expr, byte_offset: usize) -> Option<aml_co
                 .or_else(|| get_expr_location_at_offset(value, byte_offset))
         }),
         Expr::Primitive(_) => None, // Primitives don't store location
+        Expr::Error { location, .. } => Some(*location),
     }
 }

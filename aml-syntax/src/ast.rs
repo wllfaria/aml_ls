@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use aml_core::Location;
+use aml_token::TokenKind;
 use serde::Serialize;
 
 #[derive(Debug, Default)]
@@ -42,6 +43,10 @@ pub enum AstNode {
         value: Expr,
         location: Location,
     },
+    Error {
+        location: Location,
+        token: TokenKind,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -79,5 +84,9 @@ pub enum Expr {
     List(Vec<Expr>),
     Map {
         items: Vec<(Expr, Expr)>,
+    },
+    Error {
+        token: TokenKind,
+        location: Location,
     },
 }

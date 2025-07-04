@@ -147,9 +147,9 @@ impl Token {
 
 #[derive(Debug)]
 pub struct Tokens {
-    inner: Vec<Token>,
-    index: usize,
-    eof: usize,
+    pub inner: Vec<Token>,
+    pub index: usize,
+    pub eof: usize,
 }
 
 impl Tokens {

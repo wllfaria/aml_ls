@@ -91,6 +91,7 @@ impl<'source> SemanticAnalyzer<'source> {
             AstNode::Identifier { .. } => {}
             AstNode::String { .. } => {}
             AstNode::Primitive { .. } => {}
+            AstNode::Error { .. } => {}
 
             AstNode::Declaration { .. } => {
                 // we collected variables before analyzing to hoist them to the root scope
@@ -161,6 +162,7 @@ impl<'source> SemanticAnalyzer<'source> {
             Expr::Unary { expr, op } => self.infer_unary_expression_type(expr, op),
             Expr::Call { fun, args } => self.analyze_function_call(fun, args),
             Expr::ArrayIndex { lhs, index } => self.analyze_array_access(lhs, index),
+            Expr::Error { .. } => todo!(),
         }
     }
 
@@ -277,7 +279,7 @@ impl<'source> SemanticAnalyzer<'source> {
         _op: &Operator,
     ) {
         if lhs_type != expected_type && !matches!(lhs_type, ValueType::Unknown) {
-            // TODO: add location information and improve diagnostic message
+            // TODO(wiru): add location information and improve diagnostic message
         }
         if rhs_type != expected_type && !matches!(rhs_type, ValueType::Unknown) {
             // TODO: add location information and improve diagnostic message

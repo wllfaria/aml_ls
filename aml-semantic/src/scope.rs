@@ -78,6 +78,7 @@ impl ScopeAnalyzer {
                 // These don't create scopes
             }
             AstNode::Declaration { .. } => {}
+            AstNode::Error { .. } => {}
         }
     }
 
