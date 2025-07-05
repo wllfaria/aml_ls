@@ -32,15 +32,12 @@ impl ScopeAnalyzer {
     }
 
     pub fn analyze(&mut self, ast: &Ast) -> Vec<ScopeInfo> {
-        // Create root scope
         self.push_scope(None, Location::new(0, 0));
 
-        // Analyze all nodes
         for node in &ast.nodes {
             self.analyze_node(node);
         }
 
-        // Close root scope
         self.pop_scope(Location::new(usize::MAX, usize::MAX));
 
         std::mem::take(&mut self.scopes)
@@ -55,7 +52,6 @@ impl ScopeAnalyzer {
                 // Text elements create new scopes
                 self.push_scope(Some(self.current_scope), *location);
 
-                // Analyze children in this scope
                 for child in children {
                     self.analyze_node(child);
                 }
@@ -63,20 +59,17 @@ impl ScopeAnalyzer {
                 self.pop_scope(*location);
             }
             AstNode::Span { attributes, .. } => {
-                // Analyze attributes in current scope
-                for attr in attributes {
-                    self.analyze_node(attr);
-                }
+                attributes
+                    .attributes
+                    .iter()
+                    .for_each(|attr| self.analyze_node(attr));
             }
-            AstNode::Attribute { name, .. } => {
-                // Attributes declare variables in current scope
-                if let Some(var_name) = self.get_attribute_name(name) {
-                    self.declare_variable(var_name);
-                }
+            AstNode::Attribute { .. } => {
+                // if let Some(var_name) = self.get_attribute_name(name) {
+                //     self.declare_variable(var_name);
+                // }
             }
-            AstNode::Identifier { .. } | AstNode::String { .. } => {
-                // These don't create scopes
-            }
+            AstNode::Identifier { .. } | AstNode::String { .. } => {}
             AstNode::Declaration { .. } => {}
             AstNode::Error { .. } => {}
         }

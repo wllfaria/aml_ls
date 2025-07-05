@@ -1,0 +1,11 @@
+---
+source: aml-syntax/src/expressions.rs
+expression: parse(input)
+---
+Error:
+  original: "*"
+  location:
+    start_byte: 0
+    end_byte: 1
+  token:
+    Operator: Mul

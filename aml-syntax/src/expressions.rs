@@ -1,3 +1,4 @@
+use aml_core::Location;
 use aml_token::{Operator, TokenKind, Tokens};
 
 use crate::ast::Expr;
@@ -37,9 +38,11 @@ pub fn parse_expression(tokens: &mut Tokens) -> Expr {
 
 fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
     let next = tokens.next_no_indent();
+    let location = next.location();
+
     let mut lhs = match next.kind() {
-        TokenKind::Operator(Operator::LBracket) => parse_collection(tokens),
-        TokenKind::Operator(Operator::LCurly) => parse_map(tokens),
+        TokenKind::Operator(Operator::LBracket) => parse_collection(tokens, location),
+        TokenKind::Operator(Operator::LCurly) => parse_map(tokens, location),
         TokenKind::Operator(Operator::LParen) => {
             let lhs = parse_expression_inner(tokens, precedences::INITIAL);
             assert!(matches!(
@@ -48,17 +51,13 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
             ));
             lhs
         }
-        TokenKind::Operator(Operator::Minus) => Expr::Unary {
-            op: Operator::Not,
-            expr: Box::new(parse_expression_inner(tokens, precedences::PREFIX)),
-        },
-        TokenKind::Operator(Operator::Not) => Expr::Unary {
-            op: Operator::Not,
-            expr: Box::new(parse_expression_inner(tokens, precedences::PREFIX)),
-        },
-
+        TokenKind::Operator(op @ Operator::Minus) => parse_unary_expression(tokens, op, location),
+        TokenKind::Operator(op @ Operator::Not) => parse_unary_expression(tokens, op, location),
         TokenKind::String(location) => Expr::String { location },
-        TokenKind::Primitive(primitive) => Expr::Primitive(primitive),
+        TokenKind::Primitive(primitive) => Expr::Primitive {
+            value: primitive,
+            location,
+        },
         TokenKind::Identifier(location) => Expr::Ident { location },
 
         // all of these are invalid
@@ -105,7 +104,7 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
         | TokenKind::Element(_)
         | TokenKind::Newline => {
             return Expr::Error {
-                location: next.location(),
+                location,
                 token: next.kind(),
             };
         }
@@ -119,31 +118,12 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
         };
 
         match op {
-            Operator::RBracket
-            | Operator::RParen
-            | Operator::Association
-            | Operator::RCurly
-            | Operator::Mul
-            | Operator::Div
-            | Operator::Mod
+            Operator::Association
             | Operator::PlusEqual
             | Operator::MinusEqual
             | Operator::MulEqual
             | Operator::DivEqual
-            | Operator::ModEqual
-            | Operator::Colon
-            | Operator::Comma
-            | Operator::Plus
-            | Operator::Dot
-            | Operator::GreaterThan
-            | Operator::GreaterThanOrEqual
-            | Operator::LessThan
-            | Operator::LessThanOrEqual
-            | Operator::EqualEqual
-            | Operator::NotEqual
-            | Operator::Or
-            | Operator::And
-            | Operator::Either => {
+            | Operator::ModEqual => {
                 let token = tokens.next_no_indent();
                 return Expr::Error {
                     location: token.location(),
@@ -163,62 +143,93 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
 
         match op {
             Operator::LParen => {
-                lhs = parse_function(tokens, lhs);
+                lhs = parse_function(tokens, lhs, location);
                 continue;
             }
             Operator::LBracket => {
+                let index = parse_expression_inner(tokens, precedences::INITIAL);
+                let next_token = tokens.next_no_indent();
+
+                assert!(matches!(
+                    next_token.kind(),
+                    TokenKind::Operator(Operator::RBracket)
+                ));
+
                 lhs = Expr::ArrayIndex {
                     lhs: Box::new(lhs),
-                    index: Box::new(parse_expression_inner(tokens, precedences::INITIAL)),
+                    location: location.merge(next_token.location()),
+                    index: Box::new(index),
                 };
-                // TODO: error if no right bracket
-                let _ = tokens.next_no_indent();
+
                 continue;
             }
             _ => {}
         }
 
         let rhs = parse_expression_inner(tokens, op_precedence);
+        let location = location.merge(rhs.location());
         lhs = Expr::Binary {
-            lhs: Box::new(lhs),
             op,
+            lhs: Box::new(lhs),
             rhs: Box::new(rhs),
+            location,
         };
     }
 
     lhs
 }
 
-fn parse_collection(tokens: &mut Tokens) -> Expr {
-    let mut elements = vec![];
+fn parse_unary_expression(tokens: &mut Tokens, operator: Operator, location: Location) -> Expr {
+    let expr = parse_expression_inner(tokens, precedences::PREFIX);
+    let location = location.merge(expr.location());
 
-    loop {
-        match tokens.peek_skip_indent().kind() {
+    Expr::Unary {
+        op: operator,
+        expr: Box::new(expr),
+        location,
+    }
+}
+
+fn parse_collection(tokens: &mut Tokens, start_location: Location) -> Expr {
+    let mut items = vec![];
+
+    let end_location = loop {
+        let next_token = tokens.peek_skip_indent();
+        match next_token.kind() {
             TokenKind::Newline => {
                 tokens.consume();
-                continue;
+                break next_token.location();
+            }
+            TokenKind::Eof => {
+                items.push(Expr::Error {
+                    location: next_token.location(),
+                    token: next_token.kind(),
+                });
+                break next_token.location();
+            }
+            TokenKind::Operator(Operator::RBracket) => {
+                tokens.consume();
+                break next_token.location();
             }
             TokenKind::Operator(Operator::Comma) => {
                 tokens.consume();
                 continue;
             }
-            TokenKind::Operator(Operator::RBracket) => {
-                tokens.consume();
-                break;
-            }
             _ => {}
         }
-        elements.push(parse_expression_inner(tokens, precedences::INITIAL));
-    }
+        items.push(parse_expression_inner(tokens, precedences::INITIAL));
+    };
 
-    Expr::List(elements)
+    let location = start_location.merge(end_location);
+    Expr::List { items, location }
 }
 
-fn parse_map(tokens: &mut Tokens) -> Expr {
+fn parse_map(tokens: &mut Tokens, start_location: Location) -> Expr {
     let mut items = vec![];
 
-    loop {
-        match tokens.peek_skip_indent().kind() {
+    let end_location = loop {
+        let next_token = tokens.peek_skip_indent();
+        match next_token.kind() {
             TokenKind::Newline => {
                 tokens.consume();
                 continue;
@@ -229,44 +240,67 @@ fn parse_map(tokens: &mut Tokens) -> Expr {
             }
             TokenKind::Operator(Operator::RCurly) => {
                 tokens.consume();
-                break;
+                break next_token.location();
             }
             _ => {}
         }
 
         let key = parse_expression_inner(tokens, precedences::INITIAL);
+
         match tokens.peek_skip_indent().kind() {
             TokenKind::Operator(Operator::Colon) => tokens.consume(),
-            _ => break,
+            _ => {
+                items.push((
+                    key,
+                    Expr::Error {
+                        location: next_token.location(),
+                        token: next_token.kind(),
+                    },
+                ));
+                break next_token.location();
+            }
         }
         let value = parse_expression_inner(tokens, precedences::INITIAL);
         items.push((key, value));
-    }
+    };
 
-    Expr::Map { items }
+    let location = start_location.merge(end_location);
+
+    Expr::Map { items, location }
 }
 
-fn parse_function(tokens: &mut Tokens, lhs: Expr) -> Expr {
+fn parse_function(tokens: &mut Tokens, lhs: Expr, start_location: Location) -> Expr {
     let mut args = vec![];
 
-    loop {
-        match tokens.peek_skip_indent().kind() {
+    let end_location = loop {
+        let next_token = tokens.peek_skip_indent();
+        match next_token.kind() {
             TokenKind::Operator(Operator::Comma) => {
                 tokens.consume();
                 continue;
             }
             TokenKind::Operator(Operator::RParen) => {
                 tokens.consume();
-                break;
+                break next_token.location();
+            }
+            TokenKind::Eof => {
+                args.push(Expr::Error {
+                    location: next_token.location(),
+                    token: next_token.kind(),
+                });
+                break next_token.location();
             }
             _ => {}
         }
         args.push(parse_expression_inner(tokens, precedences::INITIAL));
-    }
+    };
+
+    let location = start_location.merge(end_location);
 
     Expr::Call {
         fun: Box::new(lhs),
         args,
+        location,
     }
 }
 
@@ -281,38 +315,55 @@ pub(crate) mod test {
     #[derive(Debug, Serialize)]
     pub enum SnapshotExpr<'ast> {
         Unary {
+            original: &'ast str,
             op: Operator,
             expr: Box<SnapshotExpr<'ast>>,
+            location: Location,
         },
         Binary {
+            original: &'ast str,
             lhs: Box<SnapshotExpr<'ast>>,
             rhs: Box<SnapshotExpr<'ast>>,
             op: Operator,
+            location: Location,
         },
         Ident {
-            location: Location,
             value: &'ast str,
+            location: Location,
         },
         String {
-            location: Location,
             value: &'ast str,
+            location: Location,
         },
         Call {
+            original: &'ast str,
             fun: Box<SnapshotExpr<'ast>>,
             args: Vec<SnapshotExpr<'ast>>,
+            location: Location,
         },
-        Primitive(Primitive),
+        Primitive {
+            original: &'ast str,
+            value: Primitive,
+            location: Location,
+        },
         ArrayIndex {
+            original: &'ast str,
             lhs: Box<SnapshotExpr<'ast>>,
             index: Box<SnapshotExpr<'ast>>,
+            location: Location,
         },
         List {
+            original: &'ast str,
             items: Vec<SnapshotExpr<'ast>>,
+            location: Location,
         },
         Map {
+            original: &'ast str,
             items: Vec<(SnapshotExpr<'ast>, SnapshotExpr<'ast>)>,
+            location: Location,
         },
         Error {
+            original: &'ast str,
             location: Location,
             token: TokenKind,
         },
@@ -321,14 +372,23 @@ pub(crate) mod test {
     impl<'ast> SnapshotExpr<'ast> {
         pub fn from_expr(expr: Expr, content: &'ast str) -> Self {
             match expr {
-                Expr::Unary { op, expr } => Self::Unary {
+                Expr::Unary { op, expr, location } => Self::Unary {
                     op,
+                    location,
+                    original: &content[location.to_range()],
                     expr: Box::new(SnapshotExpr::from_expr(*expr, content)),
                 },
-                Expr::Binary { lhs, rhs, op } => Self::Binary {
+                Expr::Binary {
+                    lhs,
+                    rhs,
+                    op,
+                    location,
+                } => Self::Binary {
+                    op,
+                    location,
+                    original: &content[location.to_range()],
                     lhs: Box::new(SnapshotExpr::from_expr(*lhs, content)),
                     rhs: Box::new(SnapshotExpr::from_expr(*rhs, content)),
-                    op,
                 },
                 Expr::Ident { location } => Self::Ident {
                     value: &content[location.to_range()],
@@ -338,25 +398,45 @@ pub(crate) mod test {
                     value: &content[location.to_range()],
                     location,
                 },
-                Expr::Call { fun, args } => Self::Call {
+                Expr::Call {
+                    fun,
+                    args,
+                    location,
+                } => Self::Call {
                     fun: Box::new(SnapshotExpr::from_expr(*fun, content)),
                     args: args
                         .into_iter()
                         .map(|e| SnapshotExpr::from_expr(e, content))
                         .collect(),
+                    location,
+                    original: &content[location.to_range()],
                 },
-                Expr::Primitive(primitive) => Self::Primitive(primitive),
-                Expr::ArrayIndex { lhs, index } => Self::ArrayIndex {
+                Expr::Primitive { value, location } => Self::Primitive {
+                    value,
+                    location,
+                    original: &content[location.to_range()],
+                },
+                Expr::ArrayIndex {
+                    lhs,
+                    index,
+                    location,
+                } => Self::ArrayIndex {
+                    location,
+                    original: &content[location.to_range()],
                     lhs: Box::new(SnapshotExpr::from_expr(*lhs, content)),
                     index: Box::new(SnapshotExpr::from_expr(*index, content)),
                 },
-                Expr::List(exprs) => Self::List {
-                    items: exprs
+                Expr::List { items, location } => Self::List {
+                    location,
+                    original: &content[location.to_range()],
+                    items: items
                         .into_iter()
                         .map(|e| SnapshotExpr::from_expr(e, content))
                         .collect(),
                 },
-                Expr::Map { items } => Self::Map {
+                Expr::Map { items, location } => Self::Map {
+                    location,
+                    original: &content[location.to_range()],
                     items: items
                         .into_iter()
                         .map(|(l, r)| {
@@ -367,7 +447,11 @@ pub(crate) mod test {
                         })
                         .collect(),
                 },
-                Expr::Error { location, token } => Self::Error { location, token },
+                Expr::Error { location, token } => Self::Error {
+                    token,
+                    location,
+                    original: &content[location.to_range()],
+                },
             }
         }
     }
@@ -380,37 +464,37 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn test_add() {
+    fn test_simple_add() {
         let input = "1 + 2";
         insta::assert_yaml_snapshot!(parse(input));
     }
 
     #[test]
-    fn test_sub() {
+    fn test_simple_sub() {
         let input = "1 - 2";
         insta::assert_yaml_snapshot!(parse(input));
     }
 
     #[test]
-    fn test_mul() {
+    fn test_simple_mul() {
         let input = "5 + 1 * 2";
         insta::assert_yaml_snapshot!(parse(input));
     }
 
     #[test]
-    fn test_div() {
+    fn test_simple_div() {
         let input = "5 - 1 / 2";
         insta::assert_yaml_snapshot!(parse(input));
     }
 
     #[test]
-    fn test_brackets() {
+    fn test_expr_grouping_precedence() {
         let input = "(5 + 1) * 2";
         insta::assert_yaml_snapshot!(parse(input));
     }
 
     #[test]
-    fn test_function() {
+    fn test_function_call() {
         let input = "fun(1, a + 2 * 3, 3)";
         insta::assert_yaml_snapshot!(parse(input));
     }
@@ -446,7 +530,7 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn test_list() {
+    fn test_simple_list() {
         let input = "[1, 2, a, 4]";
         insta::assert_yaml_snapshot!(parse(input));
     }
@@ -458,13 +542,13 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn test_equality() {
+    fn test_simple_equality() {
         let input = "1 == 2";
         insta::assert_yaml_snapshot!(parse(input));
     }
 
     #[test]
-    fn test_map() {
+    fn test_map_declaration() {
         let input = "{a: 1, b: c}";
         insta::assert_yaml_snapshot!(parse(input));
     }
@@ -488,8 +572,101 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn test_invalid_expression() {
-        let input = "1 ? ]";
+    fn test_unclosed_parenthesis() {
+        let input = "func(1, 2";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_unclosed_bracket() {
+        let input = "[1, 2, 3";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_unclosed_curly_brace() {
+        let input = "{a: 1, b: 2";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_missing_comma_in_list() {
+        let input = "[1 + 12 * a b c - 13]";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_missing_comma_in_function_args() {
+        let input = "foo(1 2 3)";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_missing_operand() {
+        let input = "1 + ";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_missing_left_operand() {
+        let input = "* 2";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    // TODO: this test panics right now due to an asssertion, but it should produce a nice error
+    // node for error reporting
+    // #[test]
+    // fn test_mixed_brackets() {
+    //     let input = "(1 + [2)";
+    //     insta::assert_yaml_snapshot!(parse(input));
+    // }
+
+    #[test]
+    fn test_incomplete_binary_expression() {
+        let input = "a +";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_double_operators() {
+        let input = "1 + + 2";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_empty_map_entry() {
+        let input = "{: 1, b:}";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_invalid_map_key() {
+        let input = "{1+2: 3}";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_incomplete_dot_lookup() {
+        let input = "obj.";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    // TODO: this also hits an assertion error, which it shouldn't
+    // #[test]
+    // fn test_empty_array_index() {
+    //     let input = "array[]";
+    //     insta::assert_yaml_snapshot!(parse(input));
+    // }
+
+    #[test]
+    fn test_invalid_either() {
+        let input = "a ? ";
+        insta::assert_yaml_snapshot!(parse(input));
+    }
+
+    #[test]
+    fn test_consecutive_either() {
+        let input = "a ? ? c";
         insta::assert_yaml_snapshot!(parse(input));
     }
 }

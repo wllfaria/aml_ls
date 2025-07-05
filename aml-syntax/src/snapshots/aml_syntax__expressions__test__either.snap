@@ -3,25 +3,33 @@ source: aml-syntax/src/expressions.rs
 expression: parse(input)
 ---
 Binary:
+  original: a ? b ? c
   lhs:
     Binary:
+      original: a ? b
       lhs:
         Ident:
+          value: a
           location:
             start_byte: 0
             end_byte: 1
-          value: a
       rhs:
         Ident:
+          value: b
           location:
             start_byte: 4
             end_byte: 5
-          value: b
       op: Either
+      location:
+        start_byte: 0
+        end_byte: 5
   rhs:
     Ident:
+      value: c
       location:
         start_byte: 8
         end_byte: 9
-      value: c
   op: Either
+  location:
+    start_byte: 0
+    end_byte: 9

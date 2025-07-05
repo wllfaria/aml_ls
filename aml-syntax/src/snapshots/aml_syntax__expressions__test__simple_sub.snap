@@ -1,0 +1,26 @@
+---
+source: aml-syntax/src/expressions.rs
+expression: parse(input)
+---
+Binary:
+  original: 1 - 2
+  lhs:
+    Primitive:
+      original: "1"
+      value:
+        Int: 1
+      location:
+        start_byte: 0
+        end_byte: 1
+  rhs:
+    Primitive:
+      original: "2"
+      value:
+        Int: 2
+      location:
+        start_byte: 4
+        end_byte: 5
+  op: Minus
+  location:
+    start_byte: 0
+    end_byte: 5

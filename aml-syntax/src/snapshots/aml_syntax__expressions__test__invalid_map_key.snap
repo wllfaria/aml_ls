@@ -1,0 +1,39 @@
+---
+source: aml-syntax/src/expressions.rs
+expression: parse(input)
+---
+Map:
+  original: "{1+2: 3}"
+  items:
+    - - Binary:
+          original: 1+2
+          lhs:
+            Primitive:
+              original: "1"
+              value:
+                Int: 1
+              location:
+                start_byte: 1
+                end_byte: 2
+          rhs:
+            Primitive:
+              original: "2"
+              value:
+                Int: 2
+              location:
+                start_byte: 3
+                end_byte: 4
+          op: Plus
+          location:
+            start_byte: 1
+            end_byte: 4
+      - Primitive:
+          original: "3"
+          value:
+            Int: 3
+          location:
+            start_byte: 6
+            end_byte: 7
+  location:
+    start_byte: 0
+    end_byte: 8

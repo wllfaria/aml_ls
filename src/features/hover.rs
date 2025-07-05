@@ -125,7 +125,7 @@ fn find_node_in_subtree_with_location(
             location,
             ..
         } => {
-            for attribute in attributes {
+            for attribute in &attributes.attributes {
                 if let Some((found, loc)) =
                     find_node_in_subtree_with_location(attribute, byte_offset)
                 {
@@ -150,12 +150,12 @@ fn find_node_in_subtree_with_location(
             }
         }
         AstNode::Span {
-            value,
+            values,
             attributes,
             location,
             ..
         } => {
-            for attribute in attributes {
+            for attribute in &attributes.attributes {
                 if let Some((found, loc)) =
                     find_node_in_subtree_with_location(attribute, byte_offset)
                 {
@@ -163,33 +163,31 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            if let Some(value) = value
-                && let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset)
-            {
-                return Some((found, loc));
+            for value in values {
+                if let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset) {
+                    return Some((found, loc));
+                }
             }
 
             if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
                 return Some((node, *location));
             }
         }
-        AstNode::String { value } => {
-            if byte_offset >= value.start_byte && byte_offset <= value.end_byte {
-                return Some((node, *value));
+        AstNode::String { location } => {
+            if location.contains(byte_offset) {
+                return Some((node, *location));
             }
         }
-        AstNode::Identifier { value } => {
-            if byte_offset >= value.start_byte && byte_offset <= value.end_byte {
-                return Some((node, *value));
+        AstNode::Identifier { location } => {
+            if location.contains(byte_offset) {
+                return Some((node, *location));
             }
         }
-        AstNode::Attribute { name, value } => {
-            // Check attribute name
+        AstNode::Attribute { name, value, .. } => {
             if let Some((found, loc)) = find_node_in_subtree_with_location(name, byte_offset) {
                 return Some((found, loc));
             }
 
-            // Check if position is in attribute value
             if let Some(location) = get_expr_location_at_offset(value, byte_offset) {
                 return Some((node, location)); // Return the attribute node with the expression location
             }
@@ -219,20 +217,22 @@ fn get_expr_location_at_offset(expr: &Expr, byte_offset: usize) -> Option<aml_co
         Expr::Unary { expr, .. } => get_expr_location_at_offset(expr, byte_offset),
         Expr::Binary { lhs, rhs, .. } => get_expr_location_at_offset(lhs, byte_offset)
             .or_else(|| get_expr_location_at_offset(rhs, byte_offset)),
-        Expr::Call { fun, args } => get_expr_location_at_offset(fun, byte_offset).or_else(|| {
-            args.iter()
-                .find_map(|arg| get_expr_location_at_offset(arg, byte_offset))
-        }),
-        Expr::ArrayIndex { lhs, index } => get_expr_location_at_offset(lhs, byte_offset)
+        Expr::Call { fun, args, .. } => {
+            get_expr_location_at_offset(fun, byte_offset).or_else(|| {
+                args.iter()
+                    .find_map(|arg| get_expr_location_at_offset(arg, byte_offset))
+            })
+        }
+        Expr::ArrayIndex { lhs, index, .. } => get_expr_location_at_offset(lhs, byte_offset)
             .or_else(|| get_expr_location_at_offset(index, byte_offset)),
-        Expr::List(exprs) => exprs
+        Expr::List { items, .. } => items
             .iter()
             .find_map(|expr| get_expr_location_at_offset(expr, byte_offset)),
-        Expr::Map { items } => items.iter().find_map(|(key, value)| {
+        Expr::Map { items, .. } => items.iter().find_map(|(key, value)| {
             get_expr_location_at_offset(key, byte_offset)
                 .or_else(|| get_expr_location_at_offset(value, byte_offset))
         }),
-        Expr::Primitive(_) => None, // Primitives don't store location
+        Expr::Primitive { location, .. } => Some(*location),
         Expr::Error { location, .. } => Some(*location),
     }
 }

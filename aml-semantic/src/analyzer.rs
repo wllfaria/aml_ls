@@ -1,4 +1,5 @@
 use aml_core::Location;
+use aml_syntax::ast::Attributes;
 use aml_syntax::{Ast, AstNode, Expr};
 use aml_token::{Operator, Primitive};
 
@@ -85,8 +86,8 @@ impl<'source> SemanticAnalyzer<'source> {
                 location,
             } => self.analyze_text_element(values, attributes, children, *location),
             AstNode::Span {
-                value, attributes, ..
-            } => self.analyze_span_element(value, attributes),
+                values, attributes, ..
+            } => self.analyze_span_element(values, attributes),
             AstNode::Attribute { value, .. } => _ = self.analyze_expression(value),
             AstNode::Identifier { .. } => {}
             AstNode::String { .. } => {}
@@ -102,66 +103,76 @@ impl<'source> SemanticAnalyzer<'source> {
 
     fn analyze_text_element(
         &mut self,
-        _: &[AstNode],
-        attributes: &[AstNode],
+        value: &[AstNode],
+        attributes: &Attributes,
         children: &[AstNode],
-        _: Location,
+        location: Location,
     ) {
         self.symbol_table.push_scope(None);
-        attributes.iter().for_each(|attr| self.analyze_node(attr));
-        // self.validate_text_element_value(value, location);
+        attributes
+            .attributes
+            .iter()
+            .for_each(|attr| self.analyze_node(attr));
+        self.validate_text_element_value(value, location);
         children.iter().for_each(|child| self.analyze_node(child));
         self.symbol_table.pop_scope();
     }
 
-    fn analyze_span_element(&mut self, value: &Option<Box<AstNode>>, attributes: &[AstNode]) {
-        attributes.iter().for_each(|attr| self.analyze_node(attr));
-        if let Some(value_node) = value {
-            self.analyze_node(value_node);
-        }
+    fn analyze_span_element(&mut self, values: &[AstNode], attributes: &Attributes) {
+        attributes
+            .attributes
+            .iter()
+            .for_each(|attr| self.analyze_node(attr));
+
+        values.iter().for_each(|value| self.analyze_node(value));
     }
 
-    fn validate_text_element_value(&mut self, value: &Option<Box<AstNode>>, location: Location) {
-        println!("{value:?}");
-        match value {
-            Some(value) if matches!(value.as_ref(), AstNode::String { .. }) => {}
-            Some(value) if matches!(value.as_ref(), AstNode::Identifier { .. }) => {
-                let name = self.get_node_text(value);
-                let Some(_) = self.symbol_table.lookup_symbol(name) else {
-                    self.add_diagnostic(
-                        location,
-                        format!("reference to undefined identifier '{name}'"),
-                        DiagnosticSeverity::Error,
-                    );
-                    return;
-                };
-            }
-            Some(_) => self.add_diagnostic(
-                location,
-                "Text element value must be a string literal".into(),
-                DiagnosticSeverity::Error,
-            ),
-            None => self.add_diagnostic(
+    fn validate_text_element_value(&mut self, values: &[AstNode], location: Location) {
+        if values.is_empty() {
+            self.add_diagnostic(
                 location,
                 "Text element has no value to display".into(),
                 DiagnosticSeverity::Warning,
-            ),
+            )
+        }
+
+        for value in values {
+            match value {
+                AstNode::String { .. } => {}
+                AstNode::Primitive { .. } => {}
+                AstNode::Identifier { .. } => {
+                    let name = self.get_node_text(value);
+                    let Some(_) = self.symbol_table.lookup_symbol(name) else {
+                        self.add_diagnostic(
+                            location,
+                            format!("reference to undefined identifier '{name}'"),
+                            DiagnosticSeverity::Error,
+                        );
+                        return;
+                    };
+                }
+                _ => self.add_diagnostic(
+                    location,
+                    "Text element value must be a string literal".into(),
+                    DiagnosticSeverity::Error,
+                ),
+            }
         }
     }
 
     fn analyze_expression(&mut self, expr: &Expr) -> ValueType {
         match expr {
             Expr::String { .. } => ValueType::String,
-            Expr::Primitive(primitive) => self.infer_primitive_type(primitive),
+            Expr::Primitive { value, .. } => self.infer_primitive_type(value),
             Expr::Ident { location } => self.resolve_identifier_type(*location),
-            Expr::List(exprs) => {
-                ValueType::List(Box::new(self.infer_collection_element_type(exprs)))
+            Expr::List { items, .. } => {
+                ValueType::List(Box::new(self.infer_collection_element_type(items)))
             }
-            Expr::Map { items } => self.infer_map_type(items),
-            Expr::Binary { lhs, rhs, op } => self.infer_binary_expression_type(lhs, rhs, op),
-            Expr::Unary { expr, op } => self.infer_unary_expression_type(expr, op),
-            Expr::Call { fun, args } => self.analyze_function_call(fun, args),
-            Expr::ArrayIndex { lhs, index } => self.analyze_array_access(lhs, index),
+            Expr::Map { items, .. } => self.infer_map_type(items),
+            Expr::Binary { lhs, rhs, op, .. } => self.infer_binary_expression_type(lhs, rhs, op),
+            Expr::Unary { expr, op, .. } => self.infer_unary_expression_type(expr, op),
+            Expr::Call { fun, args, .. } => self.analyze_function_call(fun, args),
+            Expr::ArrayIndex { lhs, index, .. } => self.analyze_array_access(lhs, index),
             Expr::Error { .. } => todo!(),
         }
     }
@@ -288,8 +299,8 @@ impl<'source> SemanticAnalyzer<'source> {
 
     fn get_node_text(&self, node: &AstNode) -> &'source str {
         match node {
-            AstNode::Identifier { value } => &self.content[value.to_range()],
-            AstNode::String { value } => &self.content[value.to_range()],
+            AstNode::Identifier { location } => &self.content[location.to_range()],
+            AstNode::String { location } => &self.content[location.to_range()],
             _ => panic!("Unsupported node type for text extraction"),
         }
     }
@@ -320,90 +331,47 @@ mod tests {
     }
 
     #[test]
-    fn test_variable_hoisting() {
-        let template = r#"
-// my_bg should be hoisted to the root scope, therefore it should be available in the text
-text [foreground: my_bg] ""
-    let my_bg = "red"
-    span [foreground: my_bg] 'something'
-"#;
-        let semantic_info = get_info(template);
-        assert!(semantic_info.diagnostics.is_empty());
-    }
-
-    #[test]
     fn test_text_without_value() {
-        let template = r#"
-text [foreground: "red"]
-"#;
+        let template = r#"text"#;
         let semantic_info = get_info(template);
         assert_eq!(
             semantic_info.diagnostics,
             vec![SemanticDiagnostic {
-                location: Location::new(1, 5),
+                location: Location::new(0, 4),
                 message: "Text element has no value to display".into(),
                 severity: DiagnosticSeverity::Warning,
             }]
         );
     }
 
-    //     #[test]
-    //     fn test_text_with_multiple_values() {
-    //         let template = r#"
-    // text [foreground: "red"] "something" "else"
-    // "#;
-    //         let semantic_info = get_info(template);
-    //         assert_eq!(
-    //             semantic_info.diagnostics,
-    //             vec![SemanticDiagnostic {
-    //                 location: Location::new(1, 5),
-    //                 message: "Text element has multiple values".into(),
-    //                 severity: DiagnosticSeverity::Warning,
-    //             }]
-    //         );
-    //     }
-
     #[test]
-    fn test_text_with_string_value() {
-        let template = r#"
-text [foreground: "red"] "something"
-"#;
+    fn test_text_with_multiple_values() {
+        let template = r#"text "Hello, " "World!""#;
         let semantic_info = get_info(template);
         assert!(semantic_info.diagnostics.is_empty());
     }
 
     #[test]
-    fn test_text_with_identifier_value() {
+    fn test_text_with_declared_variable() {
         let template = r#"
 let my_bg = "red"
-text [foreground: "red"] my_bg
-"#;
+text [foreground: my_bg] "Hello, World!"
+    "#;
+        let semantic_info = get_info(template);
+        assert!(semantic_info.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_text_with_undeclared_variable() {
+        let template = r#"text [foreground: undeclared] "Hello, World!""#;
         let semantic_info = get_info(template);
         assert_eq!(
             semantic_info.diagnostics,
-            vec![SemanticDiagnostic {
-                location: Location::new(1, 5),
-                message: "Text element value must be a string literal".into(),
+            [SemanticDiagnostic {
+                location: Location::new(18, 28),
+                message: "reference to undefined identifier 'undeclared'".into(),
                 severity: DiagnosticSeverity::Error,
             }]
         );
     }
-
-    //     #[test]
-    //     fn test_text_with_unknown_value() {
-    //         let template = r#"
-    // text [foreground: "red"] unknown
-    // "#;
-
-    //         let semantic_info = get_info(template);
-
-    //         assert_eq!(
-    //             semantic_info.diagnostics,
-    //             vec![SemanticDiagnostic {
-    //                 location: Location::new(1, 5),
-    //                 message: "reference to undefined identifier 'unknown'".into(),
-    //                 severity: DiagnosticSeverity::Error,
-    //             }]
-    //         );
-    //     }
 }

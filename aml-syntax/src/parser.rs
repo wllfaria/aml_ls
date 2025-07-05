@@ -1,7 +1,7 @@
 use aml_token::{Element, Operator, TokenKind, Tokens};
 
 use crate::Expr;
-use crate::ast::{Ast, AstNode, Scope};
+use crate::ast::{Ast, AstNode, Attributes, Scope};
 use crate::expressions::parse_expression;
 
 pub struct Parser {
@@ -28,7 +28,6 @@ impl Parser {
         };
 
         self.ast.nodes = self.parse_block(base_indent);
-
         self.ast
     }
 
@@ -87,43 +86,14 @@ impl Parser {
 
     fn parse_text(&mut self, current_indent: usize) -> AstNode {
         let text = self.tokens.next_token();
-        let location = text.location();
+        assert!(text.kind() == TokenKind::Element(Element::Text));
+        let start_location = text.location();
 
         self.tokens.consume_all_whitespace();
         let attributes = self.parse_optional_attributes();
         self.tokens.consume_all_whitespace();
 
-        let mut values = vec![];
-        loop {
-            match self.tokens.peek_skip_indent().kind() {
-                TokenKind::Newline => break,
-                TokenKind::Identifier(_) => values.push(self.parse_identifier()),
-                TokenKind::Eof => break,
-                TokenKind::Primitive(_) => {
-                    values.push(self.parse_primitive());
-                    self.skip_optional_comma();
-                }
-                TokenKind::String(_) => values.push(self.parse_string()),
-                t => {
-                    // Here, any other type of node is a syntax error.
-                    // The problem is, breaking out of the loop here would result in
-                    // weird state of parsing. Where the following tokens are not children of the text
-                    // so, crashing is not an option as this is a Language Server and it would be best
-                    // to somehow handle the invalid tokens until the end of the line, which is
-                    // the end of a text node.
-                    //
-                    // Example:
-                    // ```aml
-                    // text "string" identifier 1 [1, 2, 3] true
-                    // ```
-                    //
-                    // the list in the text is invalid, the boolean after it is valid.
-                    // So as an LSP, I should only report that the list is not valid there.
-                    println!("{values:?}");
-                    todo!("{t:?}");
-                }
-            }
-        }
+        let values = self.parse_values();
 
         self.tokens.consume_newlines();
 
@@ -137,12 +107,40 @@ impl Parser {
             false => vec![],
         };
 
+        let value_location = values.iter().last().map(|node| node.location());
+        let children_location = children.iter().last().map(|node| node.location());
+        let location = match (children_location, value_location, attributes.location) {
+            (Some(location), _, _) => start_location.merge(location),
+            (_, Some(location), _) => start_location.merge(location),
+            (_, _, Some(location)) => start_location.merge(location),
+            (None, None, None) => start_location,
+        };
+
         AstNode::Text {
             values,
             attributes,
             children,
             location,
         }
+    }
+
+    fn parse_values(&mut self) -> Vec<AstNode> {
+        let mut values = vec![];
+        loop {
+            let next_token = self.tokens.peek_skip_indent();
+            match next_token.kind() {
+                TokenKind::Newline => break,
+                TokenKind::Eof => break,
+                TokenKind::Identifier(_) => values.push(self.parse_identifier()),
+                TokenKind::Primitive(_) => values.push(self.parse_primitive()),
+                TokenKind::String(_) => values.push(self.parse_string()),
+                token => values.push(AstNode::Error {
+                    token,
+                    location: next_token.location(),
+                }),
+            }
+        }
+        values
     }
 
     fn parse_primitive(&mut self) -> AstNode {
@@ -154,19 +152,23 @@ impl Parser {
 
     fn parse_span(&mut self) -> AstNode {
         let span = self.tokens.next_token();
-        let location = span.location();
+        let start_location = span.location();
 
         self.tokens.consume_all_whitespace();
         let attributes = self.parse_optional_attributes();
-
         self.tokens.consume_all_whitespace();
-        let value = match self.tokens.peek().kind() {
-            TokenKind::String(_) => Some(Box::new(self.parse_string())),
-            _ => None,
+
+        let values = self.parse_values();
+
+        let last_value_location = values.iter().last().map(|node| node.location());
+        let location = match (last_value_location, attributes.location) {
+            (Some(location), _) => start_location.merge(location),
+            (_, Some(location)) => start_location.merge(location),
+            (None, None) => start_location,
         };
 
         AstNode::Span {
-            value,
+            values,
             attributes,
             location,
         }
@@ -174,8 +176,8 @@ impl Parser {
 
     fn parse_string(&mut self) -> AstNode {
         let token = self.tokens.next_token();
-        let value = token.location();
-        AstNode::String { value }
+        let location = token.location();
+        AstNode::String { location }
     }
 
     fn parse_identifier(&mut self) -> AstNode {
@@ -186,12 +188,12 @@ impl Parser {
                 token: token.kind(),
             };
         };
-        AstNode::Identifier { value: location }
+        AstNode::Identifier { location }
     }
 
     fn parse_declaration(&mut self) -> AstNode {
         let keyword = self.tokens.next_token();
-        let location = keyword.location();
+        let start_location = keyword.location();
 
         self.tokens.consume_indent();
         let name = self.parse_identifier();
@@ -200,6 +202,7 @@ impl Parser {
         self.tokens.consume(); // consume equal sign
         let value = parse_expression(&mut self.tokens);
 
+        let location = start_location.merge(value.location());
         AstNode::Declaration {
             name: Box::new(name),
             value,
@@ -207,30 +210,33 @@ impl Parser {
         }
     }
 
-    fn parse_optional_attributes(&mut self) -> Vec<AstNode> {
+    fn parse_optional_attributes(&mut self) -> Attributes {
         if self.tokens.peek_skip_indent().kind() == TokenKind::Operator(Operator::LBracket) {
             return self.parse_attributes();
         }
 
-        vec![]
+        Attributes::default()
     }
 
-    fn parse_attributes(&mut self) -> Vec<AstNode> {
-        self.tokens.consume(); // consume LBracket
+    fn parse_attributes(&mut self) -> Attributes {
+        let token = self.tokens.next_token();
+        let start_location = token.location();
+        assert!(token.kind() == TokenKind::Operator(Operator::LBracket));
 
         let mut attributes = vec![];
+        let end_location = loop {
+            let next_token = self.tokens.peek_skip_indent();
 
-        loop {
-            match self.tokens.peek_skip_indent().kind() {
+            match next_token.kind() {
                 TokenKind::Operator(Operator::RBracket) => {
                     self.tokens.consume();
-                    break;
+                    break next_token.location();
                 }
+                TokenKind::Eof => break next_token.location(),
                 TokenKind::Newline => {
                     self.tokens.consume();
                     continue;
                 }
-                TokenKind::Eof => break,
                 _ => {}
             }
 
@@ -255,15 +261,20 @@ impl Parser {
                 }
             }
 
+            let location = name.location().merge(value.location());
             attributes.push(AstNode::Attribute {
                 name: Box::new(name),
                 value,
+                location,
             });
 
             self.skip_optional_comma();
-        }
+        };
 
-        attributes
+        Attributes {
+            attributes,
+            location: Some(start_location.merge(end_location)),
+        }
     }
 
     fn skip_optional_comma(&mut self) {
@@ -300,19 +311,19 @@ fn expression_has_error(expr: &Expr) -> bool {
             lhs_error || rhs_error
         }
         Expr::String { .. } => false,
-        Expr::Call { args, fun } => {
+        Expr::Call { args, fun, .. } => {
             let args_error = args.iter().any(expression_has_error);
             let fun_error = expression_has_error(fun);
             args_error || fun_error
         }
-        Expr::Primitive(_) => false,
-        Expr::ArrayIndex { lhs, index } => {
+        Expr::Primitive { .. } => false,
+        Expr::ArrayIndex { lhs, index, .. } => {
             let lhs_error = expression_has_error(lhs);
             let index_error = expression_has_error(index);
             lhs_error || index_error
         }
-        Expr::List(items) => items.iter().any(expression_has_error),
-        Expr::Map { items } => items
+        Expr::List { items, .. } => items.iter().any(expression_has_error),
+        Expr::Map { items, .. } => items
             .iter()
             .any(|(key, value)| expression_has_error(key) || expression_has_error(value)),
     }
@@ -323,7 +334,7 @@ mod tests {
     use std::collections::HashMap;
 
     use aml_core::Location;
-    use aml_token::Lexer;
+    use aml_token::{Lexer, Primitive};
     use serde::Serialize;
 
     use super::*;
@@ -353,33 +364,36 @@ mod tests {
     #[derive(Debug, Serialize)]
     enum SnapshotAstNode<'ast> {
         Primitive {
+            value: Primitive,
             location: Location,
-            value: aml_token::Primitive,
+            original: &'ast str,
         },
         String {
-            value: Location,
-            text: &'ast str,
+            value: &'ast str,
+            location: Location,
         },
         Text {
             values: Vec<SnapshotAstNode<'ast>>,
             attributes: Vec<SnapshotAstNode<'ast>>,
             children: Vec<SnapshotAstNode<'ast>>,
-            location: Location,
             text: &'ast str,
+            location: Location,
         },
         Span {
-            value: Option<Box<SnapshotAstNode<'ast>>>,
+            values: Vec<SnapshotAstNode<'ast>>,
             attributes: Vec<SnapshotAstNode<'ast>>,
+            value: &'ast str,
             location: Location,
-            text: &'ast str,
         },
         Identifier {
-            value: Location,
-            text: &'ast str,
+            value: &'ast str,
+            location: Location,
         },
         Attribute {
             name: Box<SnapshotAstNode<'ast>>,
             value: SnapshotExpr<'ast>,
+            location: Location,
+            original: &'ast str,
         },
         Declaration {
             name: Box<SnapshotAstNode<'ast>>,
@@ -387,18 +401,22 @@ mod tests {
             location: Location,
         },
         Error {
-            location: Location,
             token: TokenKind,
+            location: Location,
         },
     }
 
     impl<'ast> SnapshotAstNode<'ast> {
         fn from_node(node: AstNode, content: &'ast str) -> Self {
             match node {
-                AstNode::Primitive { location, value } => Self::Primitive { location, value },
-                AstNode::String { value } => {
-                    let text = &content[value.to_range()];
-                    Self::String { value, text }
+                AstNode::Primitive { location, value } => Self::Primitive {
+                    location,
+                    value,
+                    original: &content[location.to_range()],
+                },
+                AstNode::String { location } => {
+                    let value = &content[location.to_range()];
+                    Self::String { location, value }
                 }
                 AstNode::Text {
                     values,
@@ -412,6 +430,7 @@ mod tests {
                         .collect(),
                     text: &content[location.to_range()],
                     attributes: attributes
+                        .attributes
                         .into_iter()
                         .map(|n| SnapshotAstNode::from_node(n, content))
                         .collect(),
@@ -422,25 +441,35 @@ mod tests {
                     location,
                 },
                 AstNode::Span {
-                    value,
+                    values,
                     location,
                     attributes,
                 } => Self::Span {
-                    value: value.map(|n| Box::new(SnapshotAstNode::from_node(*n, content))),
-                    attributes: attributes
+                    values: values
                         .into_iter()
                         .map(|n| SnapshotAstNode::from_node(n, content))
                         .collect(),
-                    text: &content[location.to_range()],
+                    attributes: attributes
+                        .attributes
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                    value: &content[location.to_range()],
                     location,
                 },
-                AstNode::Identifier { value } => Self::Identifier {
-                    text: &content[value.to_range()],
-                    value,
+                AstNode::Identifier { location } => Self::Identifier {
+                    value: &content[location.to_range()],
+                    location,
                 },
-                AstNode::Attribute { name, value } => Self::Attribute {
+                AstNode::Attribute {
+                    name,
+                    value,
+                    location,
+                } => Self::Attribute {
+                    location,
                     name: Box::new(SnapshotAstNode::from_node(*name, content)),
                     value: SnapshotExpr::from_expr(value, content),
+                    original: &content[location.to_range()],
                 },
                 AstNode::Declaration {
                     name,
@@ -464,67 +493,58 @@ mod tests {
     }
 
     #[test]
-    fn test_parser() {
-        let template = r#"
-
-text "Hello"
-    span "World""#;
-
-        let tokens = Lexer::new(template).collect::<Vec<_>>();
-        let tokens = Tokens::new(tokens, template.len());
-        let parser = Parser::new(tokens);
-
-        let ast = SnapshotAst::from_ast(parser.parse(), template);
-
+    fn test_simple_text_element() {
+        let template = r#"text "Hello""#;
+        let ast = get_ast(template);
         insta::assert_yaml_snapshot!(ast);
     }
 
     #[test]
-    fn test_parsing_weirdly_formatted_attributes() {
-        let template = r#"
-text [
-    foreground
-    :
-    "red",
-    background
-
-    :
-
-
-    'green',
-] "Hello"
-    span [background: "yellow"] "World"
-"#;
-
-        insta::assert_yaml_snapshot!(get_ast(template));
+    fn test_text_element_with_attributes() {
+        let template = r#"text [foreground: #ff0000] "Hello""#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
     }
 
     #[test]
-    fn test_parsing_attributes() {
-        let template = r#"
-text [foreground: "red"] "Hello"
-    span [background: "yellow"] "World"
-"#;
-
-        insta::assert_yaml_snapshot!(get_ast(template));
+    fn test_text_element_with_multiple_attributes() {
+        let template = r#"text [foreground: #ff0000, background: #00ff00] "Hello""#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
     }
 
     #[test]
-    fn test_parsing_invalid_token_in_text() {
-        let template = r#"
-text [foreground: ,] identifier "string" [1, 2, 3] true 1
-"#;
-
-        insta::assert_yaml_snapshot!(get_ast(template));
+    fn test_text_with_multiple_values() {
+        let template = r#"text "Hello" world true 1"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
     }
 
     #[test]
-    fn test_parse_invalid_syntax() {
-        let template = r#"
-// text [foreground: ) 1] identifier "string" true 1
-text [foreground:  identifier "string" true 1
-"#;
+    fn test_simple_span_element() {
+        let template = r#"span "Hello""#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
 
-        insta::assert_yaml_snapshot!(get_ast(template));
+    #[test]
+    fn test_span_element_with_attributes() {
+        let template = r#"span [foreground: #ff0000] "Hello""#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn parse_span_element_with_multiple_attributes() {
+        let template = r#"span [foreground: #ff0000, background: #00ff00] "Hello""#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_span_with_multiple_values() {
+        let template = r#"span "Hello" world true 1"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
     }
 }

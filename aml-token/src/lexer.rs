@@ -261,7 +261,7 @@ impl<'lex> Lexer<'lex> {
             _ => unreachable!(),
         };
 
-        kind.into_token(start_byte, end_byte)
+        kind.into_token(start_byte - 1, end_byte)
     }
 }
 

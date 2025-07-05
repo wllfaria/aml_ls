@@ -3,18 +3,55 @@ source: aml-syntax/src/expressions.rs
 expression: parse(input)
 ---
 List:
+  original: "[1, [2, 3, [4, 5]]]"
   items:
     - Primitive:
-        Int: 1
+        original: "1"
+        value:
+          Int: 1
+        location:
+          start_byte: 1
+          end_byte: 2
     - List:
+        original: "[2, 3, [4, 5]]"
         items:
           - Primitive:
-              Int: 2
+              original: "2"
+              value:
+                Int: 2
+              location:
+                start_byte: 5
+                end_byte: 6
           - Primitive:
-              Int: 3
+              original: "3"
+              value:
+                Int: 3
+              location:
+                start_byte: 8
+                end_byte: 9
           - List:
+              original: "[4, 5]"
               items:
                 - Primitive:
-                    Int: 4
+                    original: "4"
+                    value:
+                      Int: 4
+                    location:
+                      start_byte: 12
+                      end_byte: 13
                 - Primitive:
-                    Int: 5
+                    original: "5"
+                    value:
+                      Int: 5
+                    location:
+                      start_byte: 15
+                      end_byte: 16
+              location:
+                start_byte: 11
+                end_byte: 17
+        location:
+          start_byte: 4
+          end_byte: 18
+  location:
+    start_byte: 0
+    end_byte: 19

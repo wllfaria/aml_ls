@@ -19,6 +19,14 @@ impl Location {
     pub fn to_range(&self) -> Range<usize> {
         self.start_byte..self.end_byte
     }
+
+    pub fn merge(&self, other: Location) -> Location {
+        (self.start_byte..other.end_byte).into()
+    }
+
+    pub fn contains(&self, byte_offset: usize) -> bool {
+        byte_offset >= self.start_byte && byte_offset <= self.end_byte
+    }
 }
 
 impl From<(usize, usize)> for Location {

@@ -2,15 +2,22 @@
 source: aml-syntax/src/expressions.rs
 expression: parse(input)
 ---
-Call:
-  original: f()
-  fun:
+Binary:
+  original: a +
+  lhs:
     Ident:
-      value: f
+      value: a
       location:
         start_byte: 0
         end_byte: 1
-  args: []
+  rhs:
+    Error:
+      original: +
+      location:
+        start_byte: 2
+        end_byte: 3
+      token: Eof
+  op: Plus
   location:
     start_byte: 0
     end_byte: 3

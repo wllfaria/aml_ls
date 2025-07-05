@@ -1,0 +1,25 @@
+---
+source: aml-syntax/src/expressions.rs
+expression: parse(input)
+---
+Binary:
+  original: "1 + "
+  lhs:
+    Primitive:
+      original: "1"
+      value:
+        Int: 1
+      location:
+        start_byte: 0
+        end_byte: 1
+  rhs:
+    Error:
+      original: " "
+      location:
+        start_byte: 3
+        end_byte: 4
+      token: Eof
+  op: Plus
+  location:
+    start_byte: 0
+    end_byte: 4

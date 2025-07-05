@@ -2,20 +2,22 @@
 source: aml-syntax/src/expressions.rs
 expression: parse(input)
 ---
-ArrayIndex:
-  original: "map['key']"
+Binary:
+  original: obj.
   lhs:
     Ident:
-      value: map
+      value: obj
       location:
         start_byte: 0
         end_byte: 3
-  index:
-    String:
-      value: "'key'"
+  rhs:
+    Error:
+      original: "."
       location:
-        start_byte: 4
-        end_byte: 9
+        start_byte: 3
+        end_byte: 4
+      token: Eof
+  op: Dot
   location:
     start_byte: 0
-    end_byte: 10
+    end_byte: 4
