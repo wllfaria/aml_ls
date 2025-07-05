@@ -87,12 +87,9 @@ impl Parser {
     fn parse_text(&mut self, current_indent: usize) -> AstNode {
         let text = self.tokens.next_token();
         assert!(text.kind() == TokenKind::Element(Element::Text));
+
         let start_location = text.location();
-
-        self.tokens.consume_all_whitespace();
         let attributes = self.parse_optional_attributes();
-        self.tokens.consume_all_whitespace();
-
         let values = self.parse_values();
 
         self.tokens.consume_newlines();
@@ -134,10 +131,13 @@ impl Parser {
                 TokenKind::Identifier(_) => values.push(self.parse_identifier()),
                 TokenKind::Primitive(_) => values.push(self.parse_primitive()),
                 TokenKind::String(_) => values.push(self.parse_string()),
-                token => values.push(AstNode::Error {
-                    token,
-                    location: next_token.location(),
-                }),
+                token => {
+                    self.tokens.consume();
+                    values.push(AstNode::Error {
+                        token,
+                        location: next_token.location(),
+                    })
+                }
             }
         }
         values
@@ -152,12 +152,10 @@ impl Parser {
 
     fn parse_span(&mut self) -> AstNode {
         let span = self.tokens.next_token();
+        assert!(span.kind() == TokenKind::Element(Element::Span));
+
         let start_location = span.location();
-
-        self.tokens.consume_all_whitespace();
         let attributes = self.parse_optional_attributes();
-        self.tokens.consume_all_whitespace();
-
         let values = self.parse_values();
 
         let last_value_location = values.iter().last().map(|node| node.location());
@@ -211,8 +209,11 @@ impl Parser {
     }
 
     fn parse_optional_attributes(&mut self) -> Attributes {
+        self.tokens.consume_indent();
         if self.tokens.peek_skip_indent().kind() == TokenKind::Operator(Operator::LBracket) {
-            return self.parse_attributes();
+            let attributes = self.parse_attributes();
+            self.tokens.consume_indent();
+            return attributes;
         }
 
         Attributes::default()
