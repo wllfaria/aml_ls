@@ -77,6 +77,8 @@ impl HoverProvider {
             AstNode::Primitive { value, .. } => format!("{value:?}"),
             AstNode::Text { .. } => self.docs.text.into(),
             AstNode::Span { .. } => self.docs.span.into(),
+            AstNode::VStack { .. } => self.docs.vstack.into(),
+            AstNode::HStack { .. } => self.docs.hstack.into(),
             AstNode::Error { .. } => "error".into(),
             AstNode::String { .. } => "String literal".into(),
             AstNode::Identifier { .. } => "Identifier".into(),
@@ -165,6 +167,52 @@ fn find_node_in_subtree_with_location(
 
             for value in values {
                 if let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset) {
+                    return Some((found, loc));
+                }
+            }
+
+            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+                return Some((node, *location));
+            }
+        }
+        AstNode::VStack {
+            attributes,
+            location,
+            children,
+        } => {
+            for attribute in &attributes.attributes {
+                if let Some((found, loc)) =
+                    find_node_in_subtree_with_location(attribute, byte_offset)
+                {
+                    return Some((found, loc));
+                }
+            }
+
+            for child in children {
+                if let Some((found, loc)) = find_node_in_subtree_with_location(child, byte_offset) {
+                    return Some((found, loc));
+                }
+            }
+
+            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+                return Some((node, *location));
+            }
+        }
+        AstNode::HStack {
+            attributes,
+            location,
+            children,
+        } => {
+            for attribute in &attributes.attributes {
+                if let Some((found, loc)) =
+                    find_node_in_subtree_with_location(attribute, byte_offset)
+                {
+                    return Some((found, loc));
+                }
+            }
+
+            for child in children {
+                if let Some((found, loc)) = find_node_in_subtree_with_location(child, byte_offset) {
                     return Some((found, loc));
                 }
             }

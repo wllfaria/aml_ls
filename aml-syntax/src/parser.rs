@@ -80,6 +80,8 @@ impl Parser {
         match element {
             Element::Text => self.parse_text(current_indent),
             Element::Span => self.parse_span(),
+            Element::VStack => self.parse_vstack(current_indent),
+            Element::HStack => self.parse_hstack(current_indent),
             t => todo!("unhandled element: {t:?}"),
         }
     }
@@ -89,20 +91,9 @@ impl Parser {
         assert!(text.kind() == TokenKind::Element(Element::Text));
 
         let start_location = text.location();
-        let attributes = self.parse_optional_attributes();
+        let attributes = self.maybe_parse_attributes();
         let values = self.parse_values();
-
-        self.tokens.consume_newlines();
-
-        let next_indent = match self.tokens.peek().kind() {
-            TokenKind::Indent(i) => i,
-            _ => 0,
-        };
-
-        let children = match next_indent > current_indent {
-            true => self.parse_block(next_indent),
-            false => vec![],
-        };
+        let children = self.maybe_parse_block(current_indent);
 
         let value_location = values.iter().last().map(|node| node.location());
         let children_location = children.iter().last().map(|node| node.location());
@@ -117,6 +108,72 @@ impl Parser {
             values,
             attributes,
             children,
+            location,
+        }
+    }
+
+    fn parse_span(&mut self) -> AstNode {
+        let span = self.tokens.next_token();
+        assert!(span.kind() == TokenKind::Element(Element::Span));
+
+        let start_location = span.location();
+        let attributes = self.maybe_parse_attributes();
+        let values = self.parse_values();
+
+        let last_value_location = values.iter().last().map(|node| node.location());
+        let location = match (last_value_location, attributes.location) {
+            (Some(location), _) => start_location.merge(location),
+            (_, Some(location)) => start_location.merge(location),
+            (None, None) => start_location,
+        };
+
+        AstNode::Span {
+            values,
+            attributes,
+            location,
+        }
+    }
+
+    fn parse_vstack(&mut self, current_indent: usize) -> AstNode {
+        let vstack = self.tokens.next_token();
+        assert!(vstack.kind() == TokenKind::Element(Element::VStack));
+
+        let start_location = vstack.location();
+        let attributes = self.maybe_parse_attributes();
+        let children = self.maybe_parse_block(current_indent);
+
+        let children_location = children.iter().last().map(|node| node.location());
+        let location = match (children_location, attributes.location) {
+            (Some(location), _) => start_location.merge(location),
+            (_, Some(location)) => start_location.merge(location),
+            (None, None) => start_location,
+        };
+
+        AstNode::VStack {
+            children,
+            attributes,
+            location,
+        }
+    }
+
+    fn parse_hstack(&mut self, current_indent: usize) -> AstNode {
+        let hstack = self.tokens.next_token();
+        assert!(hstack.kind() == TokenKind::Element(Element::HStack));
+
+        let start_location = hstack.location();
+        let attributes = self.maybe_parse_attributes();
+        let children = self.maybe_parse_block(current_indent);
+
+        let children_location = children.iter().last().map(|node| node.location());
+        let location = match (children_location, attributes.location) {
+            (Some(location), _) => start_location.merge(location),
+            (_, Some(location)) => start_location.merge(location),
+            (None, None) => start_location,
+        };
+
+        AstNode::HStack {
+            children,
+            attributes,
             location,
         }
     }
@@ -148,28 +205,6 @@ impl Parser {
         let TokenKind::Primitive(value) = primitive.kind() else { unreachable!() };
         let location = primitive.location();
         AstNode::Primitive { location, value }
-    }
-
-    fn parse_span(&mut self) -> AstNode {
-        let span = self.tokens.next_token();
-        assert!(span.kind() == TokenKind::Element(Element::Span));
-
-        let start_location = span.location();
-        let attributes = self.parse_optional_attributes();
-        let values = self.parse_values();
-
-        let last_value_location = values.iter().last().map(|node| node.location());
-        let location = match (last_value_location, attributes.location) {
-            (Some(location), _) => start_location.merge(location),
-            (_, Some(location)) => start_location.merge(location),
-            (None, None) => start_location,
-        };
-
-        AstNode::Span {
-            values,
-            attributes,
-            location,
-        }
     }
 
     fn parse_string(&mut self) -> AstNode {
@@ -208,7 +243,7 @@ impl Parser {
         }
     }
 
-    fn parse_optional_attributes(&mut self) -> Attributes {
+    fn maybe_parse_attributes(&mut self) -> Attributes {
         self.tokens.consume_indent();
         if self.tokens.peek_skip_indent().kind() == TokenKind::Operator(Operator::LBracket) {
             let attributes = self.parse_attributes();
@@ -217,6 +252,20 @@ impl Parser {
         }
 
         Attributes::default()
+    }
+
+    fn maybe_parse_block(&mut self, current_indent: usize) -> Vec<AstNode> {
+        self.tokens.consume_newlines();
+
+        let next_indent = match self.tokens.peek().kind() {
+            TokenKind::Indent(i) => i,
+            _ => 0,
+        };
+
+        match next_indent > current_indent {
+            true => self.parse_block(next_indent),
+            false => vec![],
+        }
     }
 
     fn parse_attributes(&mut self) -> Attributes {
@@ -386,6 +435,18 @@ mod tests {
             value: &'ast str,
             location: Location,
         },
+        VStack {
+            children: Vec<SnapshotAstNode<'ast>>,
+            location: Location,
+            attributes: Vec<SnapshotAstNode<'ast>>,
+            original: &'ast str,
+        },
+        HStack {
+            children: Vec<SnapshotAstNode<'ast>>,
+            location: Location,
+            attributes: Vec<SnapshotAstNode<'ast>>,
+            original: &'ast str,
+        },
         Identifier {
             value: &'ast str,
             location: Location,
@@ -457,6 +518,40 @@ mod tests {
                         .collect(),
                     value: &content[location.to_range()],
                     location,
+                },
+                AstNode::VStack {
+                    children,
+                    location,
+                    attributes,
+                } => Self::VStack {
+                    location,
+                    children: children
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                    attributes: attributes
+                        .attributes
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                    original: &content[location.to_range()],
+                },
+                AstNode::HStack {
+                    children,
+                    location,
+                    attributes,
+                } => Self::HStack {
+                    location,
+                    children: children
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                    attributes: attributes
+                        .attributes
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                    original: &content[location.to_range()],
                 },
                 AstNode::Identifier { location } => Self::Identifier {
                     value: &content[location.to_range()],
@@ -545,6 +640,55 @@ mod tests {
     #[test]
     fn test_span_with_multiple_values() {
         let template = r#"span "Hello" world true 1"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_vstack_with_no_children() {
+        let template = r#"vstack"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_vstack_with_children() {
+        let template = r#"
+vstack
+    text "Hello"
+"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_vstack_with_multiple_children_and_attributes() {
+        let template = r#"
+vstack [width: 10]
+    text "Hello"
+    text "World"
+"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_hstack_with_children() {
+        let template = r#"
+hstack
+    text "Hello"
+"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_hstack_with_multiple_children_and_attributes() {
+        let template = r#"
+hstack [width: 10]
+    text "Hello"
+    text "World"
+"#;
         let ast = get_ast(template);
         insta::assert_yaml_snapshot!(ast);
     }

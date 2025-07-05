@@ -37,6 +37,16 @@ pub enum AstNode {
         attributes: Attributes,
         location: Location,
     },
+    VStack {
+        children: Vec<AstNode>,
+        attributes: Attributes,
+        location: Location,
+    },
+    HStack {
+        children: Vec<AstNode>,
+        attributes: Attributes,
+        location: Location,
+    },
     Identifier {
         location: Location,
     },
@@ -63,6 +73,8 @@ impl AstNode {
             AstNode::Primitive { location, .. } => *location,
             AstNode::Text { location, .. } => *location,
             AstNode::Span { location, .. } => *location,
+            AstNode::VStack { location, .. } => *location,
+            AstNode::HStack { location, .. } => *location,
             AstNode::Identifier { location } => *location,
             AstNode::Attribute { location, .. } => *location,
             AstNode::Declaration { location, .. } => *location,

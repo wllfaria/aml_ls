@@ -64,6 +64,9 @@ impl<'source> SemanticAnalyzer<'source> {
                 value,
                 location,
             } => self.declare_variable(name, value, *location),
+            AstNode::VStack { children, .. } => children
+                .iter()
+                .for_each(|child| self.collect_declarations(child)),
             _ => {}
         }
     }
@@ -88,6 +91,12 @@ impl<'source> SemanticAnalyzer<'source> {
             AstNode::Span {
                 values, attributes, ..
             } => self.analyze_span_element(values, attributes),
+            AstNode::VStack { children, .. } => {
+                children.iter().for_each(|child| self.analyze_node(child))
+            }
+            AstNode::HStack { children, .. } => {
+                children.iter().for_each(|child| self.analyze_node(child))
+            }
             AstNode::Attribute { value, .. } => _ = self.analyze_expression(value),
             AstNode::Identifier { .. } => {}
             AstNode::String { .. } => {}

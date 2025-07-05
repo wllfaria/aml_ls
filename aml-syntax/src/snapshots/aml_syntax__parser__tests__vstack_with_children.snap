@@ -1,0 +1,31 @@
+---
+source: aml-syntax/src/parser.rs
+expression: ast
+---
+nodes:
+  - VStack:
+      children:
+        - Text:
+            values:
+              - String:
+                  value: "\"Hello\""
+                  location:
+                    start_byte: 17
+                    end_byte: 24
+            attributes: []
+            children: []
+            text: "text \"Hello\""
+            location:
+              start_byte: 12
+              end_byte: 24
+      location:
+        start_byte: 1
+        end_byte: 24
+      attributes: []
+      original: "vstack\n    text \"Hello\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

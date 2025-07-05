@@ -1,0 +1,63 @@
+---
+source: aml-syntax/src/parser.rs
+expression: ast
+---
+nodes:
+  - VStack:
+      children:
+        - Text:
+            values:
+              - String:
+                  value: "\"Hello\""
+                  location:
+                    start_byte: 29
+                    end_byte: 36
+            attributes: []
+            children: []
+            text: "text \"Hello\""
+            location:
+              start_byte: 24
+              end_byte: 36
+        - Text:
+            values:
+              - String:
+                  value: "\"World\""
+                  location:
+                    start_byte: 46
+                    end_byte: 53
+            attributes: []
+            children: []
+            text: "text \"World\""
+            location:
+              start_byte: 41
+              end_byte: 53
+      location:
+        start_byte: 1
+        end_byte: 53
+      attributes:
+        - Attribute:
+            name:
+              Identifier:
+                value: width
+                location:
+                  start_byte: 9
+                  end_byte: 14
+            value:
+              Primitive:
+                original: "10"
+                value:
+                  Int: 10
+                location:
+                  start_byte: 16
+                  end_byte: 18
+            location:
+              start_byte: 9
+              end_byte: 18
+            original: "width: 10"
+      original: "vstack [width: 10]\n    text \"Hello\"\n    text \"World\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

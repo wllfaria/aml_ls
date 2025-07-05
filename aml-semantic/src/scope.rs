@@ -64,6 +64,12 @@ impl ScopeAnalyzer {
                     .iter()
                     .for_each(|attr| self.analyze_node(attr));
             }
+            AstNode::VStack { children, .. } => {
+                children.iter().for_each(|child| self.analyze_node(child))
+            }
+            AstNode::HStack { children, .. } => {
+                children.iter().for_each(|child| self.analyze_node(child))
+            }
             AstNode::Attribute { .. } => {
                 // if let Some(var_name) = self.get_attribute_name(name) {
                 //     self.declare_variable(var_name);
