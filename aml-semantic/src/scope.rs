@@ -49,7 +49,7 @@ impl ScopeAnalyzer {
             AstNode::Text {
                 children, location, ..
             } => {
-                // Text elements create new scopes
+                // text elements create new scopes
                 self.push_scope(Some(self.current_scope), *location);
 
                 for child in children {
@@ -79,10 +79,10 @@ impl ScopeAnalyzer {
         let scope_id = self.scopes.len();
 
         self.scopes.push(ScopeInfo {
-            id: scope_id,
             parent,
-            range: ScopeRange { start, end: start }, // Will be updated when scope is closed
+            id: scope_id,
             variables: Vec::new(),
+            range: ScopeRange { start, end: start }, // will be updated when scope is closed
         });
 
         self.scope_stack.push(self.current_scope);
@@ -90,12 +90,10 @@ impl ScopeAnalyzer {
     }
 
     fn pop_scope(&mut self, end: Location) {
-        // Update scope end location
         if let Some(scope) = self.scopes.get_mut(self.current_scope) {
             scope.range.end = end;
         }
 
-        // Return to parent scope
         if let Some(parent_scope) = self.scope_stack.pop() {
             self.current_scope = parent_scope;
         }
@@ -111,10 +109,7 @@ impl ScopeAnalyzer {
 
     fn get_attribute_name(&self, node: &AstNode) -> Option<String> {
         match node {
-            AstNode::Identifier { .. } => {
-                // Would need source text to get actual name
-                Some("attribute".to_string())
-            }
+            AstNode::Identifier { .. } => Some("attribute".to_string()),
             _ => None,
         }
     }
