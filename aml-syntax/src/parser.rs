@@ -4,6 +4,41 @@ use crate::Expr;
 use crate::ast::{Ast, AstNode, Attributes, Scope};
 use crate::expressions::parse_expression;
 
+struct LocationCalculator;
+
+impl LocationCalculator {
+    fn merge_location_with_values(
+        start: aml_core::Location,
+        attributes: &Attributes,
+        values: Option<&Vec<AstNode>>,
+        children: Option<&Vec<AstNode>>,
+    ) -> aml_core::Location {
+        let value_location = values.and_then(|v| v.iter().last().map(|node| node.location()));
+        let children_location = children.and_then(|c| c.iter().last().map(|node| node.location()));
+
+        match (children_location, value_location, attributes.location) {
+            (Some(location), _, _) => start.merge(location),
+            (_, Some(location), _) => start.merge(location),
+            (_, _, Some(location)) => start.merge(location),
+            (None, None, None) => start,
+        }
+    }
+
+    fn merge_location_without_values(
+        start: aml_core::Location,
+        attributes: &Attributes,
+        children: &[AstNode],
+    ) -> aml_core::Location {
+        let children_location = children.iter().last().map(|node| node.location());
+
+        match (children_location, attributes.location) {
+            (Some(location), _) => start.merge(location),
+            (_, Some(location)) => start.merge(location),
+            (None, None) => start,
+        }
+    }
+}
+
 pub struct Parser {
     scope_stack: Vec<usize>,
     tokens: Tokens,
@@ -95,14 +130,12 @@ impl Parser {
         let values = self.parse_values();
         let children = self.maybe_parse_block(current_indent);
 
-        let value_location = values.iter().last().map(|node| node.location());
-        let children_location = children.iter().last().map(|node| node.location());
-        let location = match (children_location, value_location, attributes.location) {
-            (Some(location), _, _) => start_location.merge(location),
-            (_, Some(location), _) => start_location.merge(location),
-            (_, _, Some(location)) => start_location.merge(location),
-            (None, None, None) => start_location,
-        };
+        let location = LocationCalculator::merge_location_with_values(
+            start_location,
+            &attributes,
+            Some(&values),
+            Some(&children),
+        );
 
         AstNode::Text {
             values,
@@ -120,12 +153,8 @@ impl Parser {
         let attributes = self.maybe_parse_attributes();
         let values = self.parse_values();
 
-        let last_value_location = values.iter().last().map(|node| node.location());
-        let location = match (last_value_location, attributes.location) {
-            (Some(location), _) => start_location.merge(location),
-            (_, Some(location)) => start_location.merge(location),
-            (None, None) => start_location,
-        };
+        let location =
+            LocationCalculator::merge_location_without_values(start_location, &attributes, &values);
 
         AstNode::Span {
             values,
@@ -142,12 +171,11 @@ impl Parser {
         let attributes = self.maybe_parse_attributes();
         let children = self.maybe_parse_block(current_indent);
 
-        let children_location = children.iter().last().map(|node| node.location());
-        let location = match (children_location, attributes.location) {
-            (Some(location), _) => start_location.merge(location),
-            (_, Some(location)) => start_location.merge(location),
-            (None, None) => start_location,
-        };
+        let location = LocationCalculator::merge_location_without_values(
+            start_location,
+            &attributes,
+            &children,
+        );
 
         AstNode::VStack {
             children,
@@ -164,12 +192,11 @@ impl Parser {
         let attributes = self.maybe_parse_attributes();
         let children = self.maybe_parse_block(current_indent);
 
-        let children_location = children.iter().last().map(|node| node.location());
-        let location = match (children_location, attributes.location) {
-            (Some(location), _) => start_location.merge(location),
-            (_, Some(location)) => start_location.merge(location),
-            (None, None) => start_location,
-        };
+        let location = LocationCalculator::merge_location_without_values(
+            start_location,
+            &attributes,
+            &children,
+        );
 
         AstNode::HStack {
             children,
