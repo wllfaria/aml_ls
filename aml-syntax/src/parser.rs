@@ -109,7 +109,7 @@ impl Parser {
             TokenKind::Decl => self.parse_declaration(),
             TokenKind::Component => self.parse_component(),
             TokenKind::ComponentSlot => self.parse_component_slot(),
-            TokenKind::For => todo!(),
+            TokenKind::For => self.parse_for_loop(current_indent),
             TokenKind::If => todo!(),
             TokenKind::Switch => todo!(),
             TokenKind::With => todo!(),
@@ -230,6 +230,38 @@ impl Parser {
             attributes,
             location,
             keyword: token.location(),
+        }
+    }
+
+    fn parse_for_loop(&mut self, current_indent: usize) -> AstNode {
+        let keyword = self.tokens.next_token();
+        let start_location = keyword.location();
+        self.tokens.consume_indent();
+
+        let binding = self.parse_identifier();
+        self.tokens.consume_indent();
+
+        if self.tokens.peek().kind() == TokenKind::In {
+            self.tokens.consume()
+        }
+        self.tokens.consume_indent();
+
+        let value = parse_expression(&mut self.tokens);
+        let children = self.maybe_parse_block(current_indent);
+
+        let last_child_location = children.last().map(|node| node.location());
+
+        let location = match (last_child_location, value.location()) {
+            (Some(location), _) => start_location.merge(location),
+            (_, location) => start_location.merge(location),
+        };
+
+        AstNode::For {
+            binding: Box::new(binding),
+            value,
+            children,
+            location,
+            keyword: keyword.location(),
         }
     }
 
@@ -501,6 +533,14 @@ mod tests {
             token: TokenKind,
             location: Location,
         },
+        For {
+            binding: Box<SnapshotAstNode<'ast>>,
+            value: SnapshotExpr<'ast>,
+            children: Vec<SnapshotAstNode<'ast>>,
+            location: Location,
+            keyword: Location,
+            original: &'ast str,
+        },
     }
 
     impl<'ast> SnapshotAstNode<'ast> {
@@ -621,6 +661,23 @@ mod tests {
                     location,
                     original: &content[location.to_range()],
                     name: Box::new(SnapshotAstNode::from_node(*name, content)),
+                },
+                AstNode::For {
+                    binding,
+                    value,
+                    children,
+                    location,
+                    keyword,
+                } => Self::For {
+                    location,
+                    original: &content[location.to_range()],
+                    binding: Box::new(SnapshotAstNode::from_node(*binding, content)),
+                    value: SnapshotExpr::from_expr(value, content),
+                    children: children
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                    keyword,
                 },
             }
         }
@@ -762,6 +819,46 @@ hstack [width: 10]
     #[test]
     fn test_component_slot() {
         let template = r#"$children"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_for_loop_inline_list() {
+        let template = r#"
+for item in [1, 2, 3]
+    text item
+"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_for_loop_identifier() {
+        let template = r#"
+for item in list_of_items
+    text item
+"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_for_loop_no_value() {
+        let template = r#"
+for item in
+    text item
+"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_for_loop_no_binding() {
+        let template = r#"
+for  in [1,2,3]
+    text item
+"#;
         let ast = get_ast(template);
         insta::assert_yaml_snapshot!(ast);
     }

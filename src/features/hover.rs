@@ -234,6 +234,7 @@ fn find_node_in_subtree_with_location(
         AstNode::Error { .. } => {}
         AstNode::Component { .. } => {}
         AstNode::ComponentSlot { .. } => {}
+        AstNode::For { .. } => {}
     }
     None
 }

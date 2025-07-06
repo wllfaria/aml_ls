@@ -77,6 +77,7 @@ impl ScopeAnalyzer {
             AstNode::Error { .. } => {}
             AstNode::Component { .. } => {}
             AstNode::ComponentSlot { .. } => {}
+            AstNode::For { .. } => {}
         }
     }
 

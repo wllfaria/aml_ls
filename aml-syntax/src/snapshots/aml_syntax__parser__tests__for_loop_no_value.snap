@@ -1,0 +1,49 @@
+---
+source: aml-syntax/src/parser.rs
+expression: ast
+---
+nodes:
+  - For:
+      binding:
+        Identifier:
+          value: item
+          location:
+            start_byte: 5
+            end_byte: 9
+      value:
+        Error:
+          original: "\n"
+          location:
+            start_byte: 12
+            end_byte: 13
+          token: Newline
+      children:
+        - Text:
+            values:
+              - Identifier:
+                  value: item
+                  location:
+                    start_byte: 22
+                    end_byte: 26
+            attributes: []
+            children: []
+            text: text item
+            location:
+              start_byte: 17
+              end_byte: 26
+            keyword:
+              start_byte: 17
+              end_byte: 21
+      location:
+        start_byte: 1
+        end_byte: 26
+      keyword:
+        start_byte: 1
+        end_byte: 4
+      original: "for item in\n    text item"
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

@@ -107,6 +107,7 @@ impl<'source> SemanticAnalyzer<'source> {
             }
             AstNode::Component { .. } => {}
             AstNode::ComponentSlot { .. } => {}
+            AstNode::For { .. } => {}
         }
     }
 

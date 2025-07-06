@@ -49,6 +49,13 @@ pub enum AstNode {
         location: Location,
         keyword: Location,
     },
+    For {
+        binding: Box<AstNode>,
+        value: Expr,
+        children: Vec<AstNode>,
+        location: Location,
+        keyword: Location,
+    },
     Span {
         values: Vec<AstNode>,
         attributes: Attributes,
@@ -83,6 +90,7 @@ impl AstNode {
             AstNode::Span { location, .. } => *location,
             AstNode::Container { location, .. } => *location,
             AstNode::Identifier { location } => *location,
+            AstNode::For { location, .. } => *location,
             AstNode::Attribute { location, .. } => *location,
             AstNode::Declaration { location, .. } => *location,
             AstNode::Error { location, .. } => *location,
