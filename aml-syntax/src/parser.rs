@@ -39,6 +39,107 @@ impl LocationCalculator {
     }
 }
 
+trait ElementParser {
+    fn parse_element(&self, parser: &mut Parser, current_indent: usize) -> AstNode;
+}
+
+struct TextElementParser;
+struct SpanElementParser;
+struct VStackElementParser;
+struct HStackElementParser;
+
+impl ElementParser for TextElementParser {
+    fn parse_element(&self, parser: &mut Parser, current_indent: usize) -> AstNode {
+        let text = parser.tokens.next_token();
+        assert!(text.kind() == TokenKind::Element(Element::Text));
+
+        let start_location = text.location();
+        let attributes = parser.maybe_parse_attributes();
+        let values = parser.parse_values();
+        let children = parser.maybe_parse_block(current_indent);
+
+        let location = LocationCalculator::merge_location_with_values(
+            start_location,
+            &attributes,
+            Some(&values),
+            Some(&children),
+        );
+
+        AstNode::Text {
+            values,
+            attributes,
+            children,
+            location,
+        }
+    }
+}
+
+impl ElementParser for SpanElementParser {
+    fn parse_element(&self, parser: &mut Parser, _current_indent: usize) -> AstNode {
+        let span = parser.tokens.next_token();
+        assert!(span.kind() == TokenKind::Element(Element::Span));
+
+        let start_location = span.location();
+        let attributes = parser.maybe_parse_attributes();
+        let values = parser.parse_values();
+
+        let location =
+            LocationCalculator::merge_location_without_values(start_location, &attributes, &values);
+
+        AstNode::Span {
+            values,
+            attributes,
+            location,
+        }
+    }
+}
+
+impl ElementParser for VStackElementParser {
+    fn parse_element(&self, parser: &mut Parser, current_indent: usize) -> AstNode {
+        let vstack = parser.tokens.next_token();
+        assert!(vstack.kind() == TokenKind::Element(Element::VStack));
+
+        let start_location = vstack.location();
+        let attributes = parser.maybe_parse_attributes();
+        let children = parser.maybe_parse_block(current_indent);
+
+        let location = LocationCalculator::merge_location_without_values(
+            start_location,
+            &attributes,
+            &children,
+        );
+
+        AstNode::VStack {
+            children,
+            attributes,
+            location,
+        }
+    }
+}
+
+impl ElementParser for HStackElementParser {
+    fn parse_element(&self, parser: &mut Parser, current_indent: usize) -> AstNode {
+        let hstack = parser.tokens.next_token();
+        assert!(hstack.kind() == TokenKind::Element(Element::HStack));
+
+        let start_location = hstack.location();
+        let attributes = parser.maybe_parse_attributes();
+        let children = parser.maybe_parse_block(current_indent);
+
+        let location = LocationCalculator::merge_location_without_values(
+            start_location,
+            &attributes,
+            &children,
+        );
+
+        AstNode::HStack {
+            children,
+            attributes,
+            location,
+        }
+    }
+}
+
 pub struct Parser {
     scope_stack: Vec<usize>,
     tokens: Tokens,
@@ -113,95 +214,11 @@ impl Parser {
 
     fn parse_element(&mut self, element: Element, current_indent: usize) -> AstNode {
         match element {
-            Element::Text => self.parse_text(current_indent),
-            Element::Span => self.parse_span(),
-            Element::VStack => self.parse_vstack(current_indent),
-            Element::HStack => self.parse_hstack(current_indent),
+            Element::Text => TextElementParser.parse_element(self, current_indent),
+            Element::Span => SpanElementParser.parse_element(self, 0),
+            Element::VStack => VStackElementParser.parse_element(self, current_indent),
+            Element::HStack => HStackElementParser.parse_element(self, current_indent),
             t => todo!("unhandled element: {t:?}"),
-        }
-    }
-
-    fn parse_text(&mut self, current_indent: usize) -> AstNode {
-        let text = self.tokens.next_token();
-        assert!(text.kind() == TokenKind::Element(Element::Text));
-
-        let start_location = text.location();
-        let attributes = self.maybe_parse_attributes();
-        let values = self.parse_values();
-        let children = self.maybe_parse_block(current_indent);
-
-        let location = LocationCalculator::merge_location_with_values(
-            start_location,
-            &attributes,
-            Some(&values),
-            Some(&children),
-        );
-
-        AstNode::Text {
-            values,
-            attributes,
-            children,
-            location,
-        }
-    }
-
-    fn parse_span(&mut self) -> AstNode {
-        let span = self.tokens.next_token();
-        assert!(span.kind() == TokenKind::Element(Element::Span));
-
-        let start_location = span.location();
-        let attributes = self.maybe_parse_attributes();
-        let values = self.parse_values();
-
-        let location =
-            LocationCalculator::merge_location_without_values(start_location, &attributes, &values);
-
-        AstNode::Span {
-            values,
-            attributes,
-            location,
-        }
-    }
-
-    fn parse_vstack(&mut self, current_indent: usize) -> AstNode {
-        let vstack = self.tokens.next_token();
-        assert!(vstack.kind() == TokenKind::Element(Element::VStack));
-
-        let start_location = vstack.location();
-        let attributes = self.maybe_parse_attributes();
-        let children = self.maybe_parse_block(current_indent);
-
-        let location = LocationCalculator::merge_location_without_values(
-            start_location,
-            &attributes,
-            &children,
-        );
-
-        AstNode::VStack {
-            children,
-            attributes,
-            location,
-        }
-    }
-
-    fn parse_hstack(&mut self, current_indent: usize) -> AstNode {
-        let hstack = self.tokens.next_token();
-        assert!(hstack.kind() == TokenKind::Element(Element::HStack));
-
-        let start_location = hstack.location();
-        let attributes = self.maybe_parse_attributes();
-        let children = self.maybe_parse_block(current_indent);
-
-        let location = LocationCalculator::merge_location_without_values(
-            start_location,
-            &attributes,
-            &children,
-        );
-
-        AstNode::HStack {
-            children,
-            attributes,
-            location,
         }
     }
 
