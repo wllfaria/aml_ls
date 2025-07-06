@@ -31,17 +31,20 @@ pub enum AstNode {
         children: Vec<AstNode>,
         attributes: Attributes,
         location: Location,
+        keyword: Location,
     },
     Text {
         values: Vec<AstNode>,
         attributes: Attributes,
         children: Vec<AstNode>,
         location: Location,
+        keyword: Location,
     },
     Span {
         values: Vec<AstNode>,
         attributes: Attributes,
         location: Location,
+        keyword: Location,
     },
     Identifier {
         location: Location,

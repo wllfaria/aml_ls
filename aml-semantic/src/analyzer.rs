@@ -87,6 +87,7 @@ impl<'source> SemanticAnalyzer<'source> {
                 attributes,
                 children,
                 location,
+                ..
             } => self.analyze_text_element(values, attributes, children, *location),
             AstNode::Span {
                 values, attributes, ..

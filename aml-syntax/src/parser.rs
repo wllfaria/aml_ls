@@ -157,6 +157,7 @@ impl Parser {
             attributes,
             children,
             location,
+            keyword: text.location(),
         }
     }
 
@@ -175,6 +176,7 @@ impl Parser {
             values,
             attributes,
             location,
+            keyword: span.location(),
         }
     }
 
@@ -196,6 +198,7 @@ impl Parser {
             children,
             attributes,
             location,
+            keyword: token.location(),
         }
     }
 
@@ -420,12 +423,14 @@ mod tests {
             children: Vec<SnapshotAstNode<'ast>>,
             text: &'ast str,
             location: Location,
+            keyword: Location,
         },
         Span {
             values: Vec<SnapshotAstNode<'ast>>,
             attributes: Vec<SnapshotAstNode<'ast>>,
             value: &'ast str,
             location: Location,
+            keyword: Location,
         },
         Container {
             kind: Container,
@@ -433,6 +438,7 @@ mod tests {
             location: Location,
             attributes: Vec<SnapshotAstNode<'ast>>,
             original: &'ast str,
+            keyword: Location,
         },
         Identifier {
             value: &'ast str,
@@ -472,7 +478,9 @@ mod tests {
                     children,
                     location,
                     attributes,
+                    keyword,
                 } => Self::Text {
+                    keyword,
                     values: values
                         .into_iter()
                         .map(|n| SnapshotAstNode::from_node(n, content))
@@ -493,7 +501,9 @@ mod tests {
                     values,
                     location,
                     attributes,
+                    keyword,
                 } => Self::Span {
+                    keyword,
                     values: values
                         .into_iter()
                         .map(|n| SnapshotAstNode::from_node(n, content))
@@ -511,7 +521,9 @@ mod tests {
                     location,
                     attributes,
                     kind,
+                    keyword,
                 } => Self::Container {
+                    keyword,
                     kind,
                     location,
                     children: children

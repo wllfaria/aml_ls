@@ -11,6 +11,9 @@ nodes:
         end_byte: 6
       attributes: []
       original: vstack
+      keyword:
+        start_byte: 0
+        end_byte: 6
 variables: {}
 scopes:
   - variables: []

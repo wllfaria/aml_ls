@@ -1,6 +1,6 @@
 use aml_semantic::SymbolType;
 use aml_syntax::{Ast, AstNode, Expr};
-use aml_token::{Container, Element};
+use aml_token::Container;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
@@ -108,7 +108,6 @@ impl HoverProvider {
         semantic_info: &aml_semantic::SemanticInfo,
         position: aml_core::Location,
     ) -> String {
-        // Try to get semantic information for the node at this position
         if let Some(symbol) = semantic_info.symbol_table.find_symbol_at_position(position) {
             match &symbol.symbol_type {
                 SymbolType::Variable { value_type } => {
@@ -117,7 +116,6 @@ impl HoverProvider {
                 SymbolType::Element => format!("Element: {}", symbol.name),
             }
         } else {
-            // Fall back to basic hover content
             self.get_hover_content(node)
         }
     }
@@ -128,12 +126,16 @@ fn find_node_in_subtree_with_location(
     byte_offset: usize,
 ) -> Option<(&AstNode, aml_core::Location)> {
     match node {
-        AstNode::Primitive { .. } => todo!(),
+        AstNode::Primitive { location, .. } => {
+            if location.contains(byte_offset) {
+                return Some((node, *location));
+            }
+        }
         AstNode::Text {
             values,
             attributes,
             children,
-            location,
+            keyword,
             ..
         } => {
             for attribute in &attributes.attributes {
@@ -156,14 +158,14 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
-                return Some((node, *location));
+            if keyword.contains(byte_offset) {
+                return Some((node, *keyword));
             }
         }
         AstNode::Span {
             values,
             attributes,
-            location,
+            keyword,
             ..
         } => {
             for attribute in &attributes.attributes {
@@ -180,14 +182,14 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
-                return Some((node, *location));
+            if keyword.contains(byte_offset) {
+                return Some((node, *keyword));
             }
         }
         AstNode::Container {
             attributes,
-            location,
             children,
+            keyword,
             ..
         } => {
             for attribute in &attributes.attributes {
@@ -204,8 +206,8 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
-                return Some((node, *location));
+            if keyword.contains(byte_offset) {
+                return Some((node, *keyword));
             }
         }
         AstNode::String { location } => {
@@ -269,5 +271,30 @@ fn get_expr_location_at_offset(expr: &Expr, byte_offset: usize) -> Option<aml_co
         }),
         Expr::Primitive { location, .. } => Some(*location),
         Expr::Error { location, .. } => Some(*location),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aml_syntax::Parser;
+    use aml_token::{Lexer, Tokens};
+
+    use super::*;
+
+    fn get_ast(template: &str) -> Ast {
+        let tokens = Lexer::new(template).collect();
+        let tokens = Tokens::new(tokens, template.len());
+        let parser = Parser::new(tokens);
+        parser.parse()
+    }
+
+    #[test]
+    fn test_find_attribute_in_node() {
+        let template = r#"text [foreground: #ff0000] "Hello""#;
+        let provider = HoverProvider::new();
+        let ast = get_ast(template);
+        let node = provider.find_node_at_position(&ast, "te".len());
+        println!("{node:?}");
+        panic!();
     }
 }

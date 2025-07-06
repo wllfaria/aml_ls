@@ -19,11 +19,17 @@ nodes:
             location:
               start_byte: 12
               end_byte: 24
+            keyword:
+              start_byte: 12
+              end_byte: 16
       location:
         start_byte: 1
         end_byte: 24
       attributes: []
       original: "hstack\n    text \"Hello\""
+      keyword:
+        start_byte: 1
+        end_byte: 7
 variables: {}
 scopes:
   - variables: []

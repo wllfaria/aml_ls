@@ -60,6 +60,9 @@ nodes:
       location:
         start_byte: 0
         end_byte: 55
+      keyword:
+        start_byte: 0
+        end_byte: 4
 variables: {}
 scopes:
   - variables: []

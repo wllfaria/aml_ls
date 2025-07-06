@@ -19,6 +19,9 @@ nodes:
             location:
               start_byte: 24
               end_byte: 36
+            keyword:
+              start_byte: 24
+              end_byte: 28
         - Text:
             values:
               - String:
@@ -32,6 +35,9 @@ nodes:
             location:
               start_byte: 41
               end_byte: 53
+            keyword:
+              start_byte: 41
+              end_byte: 45
       location:
         start_byte: 1
         end_byte: 53
@@ -56,6 +62,9 @@ nodes:
               end_byte: 18
             original: "width: 10"
       original: "hstack [width: 10]\n    text \"Hello\"\n    text \"World\""
+      keyword:
+        start_byte: 1
+        end_byte: 7
 variables: {}
 scopes:
   - variables: []
