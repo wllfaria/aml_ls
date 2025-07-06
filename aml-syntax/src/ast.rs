@@ -22,6 +22,15 @@ pub enum AstNode {
     String {
         location: Location,
     },
+    Component {
+        name: Box<AstNode>,
+        location: Location,
+        attributes: Attributes,
+    },
+    ComponentSlot {
+        name: Box<AstNode>,
+        location: Location,
+    },
     Primitive {
         location: Location,
         value: Primitive,
@@ -77,6 +86,8 @@ impl AstNode {
             AstNode::Attribute { location, .. } => *location,
             AstNode::Declaration { location, .. } => *location,
             AstNode::Error { location, .. } => *location,
+            AstNode::Component { location, .. } => *location,
+            AstNode::ComponentSlot { location, .. } => *location,
         }
     }
 }

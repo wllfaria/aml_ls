@@ -99,6 +99,7 @@ impl HoverProvider {
             AstNode::Identifier { .. } => "Identifier".into(),
             AstNode::Declaration { .. } => "Declaration".into(),
             AstNode::Attribute { .. } => "Attribute".into(),
+            _ => "Unknown".into(),
         }
     }
 
@@ -231,6 +232,8 @@ fn find_node_in_subtree_with_location(
         }
         AstNode::Declaration { .. } => {}
         AstNode::Error { .. } => {}
+        AstNode::Component { .. } => {}
+        AstNode::ComponentSlot { .. } => {}
     }
     None
 }

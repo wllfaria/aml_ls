@@ -1,0 +1,21 @@
+---
+source: aml-syntax/src/parser.rs
+expression: ast
+---
+nodes:
+  - Component:
+      name:
+        Identifier:
+          value: name
+          location:
+            start_byte: 1
+            end_byte: 5
+      location:
+        start_byte: 0
+        end_byte: 5
+      attributes: []
+      original: "@name"
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

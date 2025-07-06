@@ -75,6 +75,8 @@ impl ScopeAnalyzer {
             AstNode::Identifier { .. } | AstNode::String { .. } => {}
             AstNode::Declaration { .. } => {}
             AstNode::Error { .. } => {}
+            AstNode::Component { .. } => {}
+            AstNode::ComponentSlot { .. } => {}
         }
     }
 

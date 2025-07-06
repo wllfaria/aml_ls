@@ -1,0 +1,43 @@
+---
+source: aml-syntax/src/parser.rs
+expression: ast
+---
+nodes:
+  - Component:
+      name:
+        Identifier:
+          value: name
+          location:
+            start_byte: 1
+            end_byte: 5
+      location:
+        start_byte: 0
+        end_byte: 27
+      attributes:
+        - Attribute:
+            name:
+              Identifier:
+                value: foreground
+                location:
+                  start_byte: 7
+                  end_byte: 17
+            value:
+              Primitive:
+                original: "#ff0000"
+                value:
+                  Hex:
+                    r: 255
+                    g: 0
+                    b: 0
+                location:
+                  start_byte: 19
+                  end_byte: 26
+            location:
+              start_byte: 7
+              end_byte: 26
+            original: "foreground: #ff0000"
+      original: "@name [foreground: #ff0000]"
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

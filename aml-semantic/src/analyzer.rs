@@ -105,6 +105,8 @@ impl<'source> SemanticAnalyzer<'source> {
                 // we collected variables before analyzing to hoist them to the root scope
                 // so we can just skip them here
             }
+            AstNode::Component { .. } => {}
+            AstNode::ComponentSlot { .. } => {}
         }
     }
 

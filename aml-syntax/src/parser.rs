@@ -107,12 +107,12 @@ impl Parser {
             TokenKind::String(_) => self.parse_string(),
             TokenKind::Identifier(_) => self.parse_identifier(),
             TokenKind::Decl => self.parse_declaration(),
+            TokenKind::Component => self.parse_component(),
+            TokenKind::ComponentSlot => self.parse_component_slot(),
             TokenKind::For => todo!(),
             TokenKind::If => todo!(),
             TokenKind::Switch => todo!(),
             TokenKind::With => todo!(),
-            TokenKind::Component => todo!(),
-            TokenKind::ComponentSlot => todo!(),
 
             TokenKind::Indent(_) => todo!(),
             TokenKind::Else => todo!(),
@@ -133,6 +133,37 @@ impl Parser {
         match element {
             Element::Text => self.parse_text(current_indent),
             Element::Span => self.parse_span(),
+        }
+    }
+
+    fn parse_component_slot(&mut self) -> AstNode {
+        let component = self.tokens.next_token();
+        let start_location = component.location();
+        let name = self.parse_identifier();
+
+        let location = start_location.merge(name.location());
+        AstNode::ComponentSlot {
+            name: Box::new(name),
+            location,
+        }
+    }
+
+    fn parse_component(&mut self) -> AstNode {
+        let component = self.tokens.next_token();
+        let start_location = component.location();
+
+        let name = self.parse_identifier();
+        let attributes = self.maybe_parse_attributes();
+
+        let location = match attributes.location {
+            Some(location) => start_location.merge(location),
+            None => start_location.merge(name.location()),
+        };
+
+        AstNode::Component {
+            name: Box::new(name),
+            location,
+            attributes,
         }
     }
 
@@ -417,6 +448,17 @@ mod tests {
             value: &'ast str,
             location: Location,
         },
+        Component {
+            name: Box<SnapshotAstNode<'ast>>,
+            location: Location,
+            attributes: Vec<SnapshotAstNode<'ast>>,
+            original: &'ast str,
+        },
+        ComponentSlot {
+            name: Box<SnapshotAstNode<'ast>>,
+            location: Location,
+            original: &'ast str,
+        },
         Text {
             values: Vec<SnapshotAstNode<'ast>>,
             attributes: Vec<SnapshotAstNode<'ast>>,
@@ -561,6 +603,25 @@ mod tests {
                     location,
                 },
                 AstNode::Error { location, token } => Self::Error { location, token },
+                AstNode::Component {
+                    name,
+                    attributes,
+                    location,
+                } => Self::Component {
+                    location,
+                    original: &content[location.to_range()],
+                    name: Box::new(SnapshotAstNode::from_node(*name, content)),
+                    attributes: attributes
+                        .attributes
+                        .into_iter()
+                        .map(|n| SnapshotAstNode::from_node(n, content))
+                        .collect(),
+                },
+                AstNode::ComponentSlot { name, location } => Self::ComponentSlot {
+                    location,
+                    original: &content[location.to_range()],
+                    name: Box::new(SnapshotAstNode::from_node(*name, content)),
+                },
             }
         }
     }
@@ -680,6 +741,27 @@ hstack [width: 10]
     #[test]
     fn test_border_with_no_children() {
         let template = r#"border"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_component() {
+        let template = r#"@name"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_component_with_attributes() {
+        let template = r#"@name [foreground: #ff0000]"#;
+        let ast = get_ast(template);
+        insta::assert_yaml_snapshot!(ast);
+    }
+
+    #[test]
+    fn test_component_slot() {
+        let template = r#"$children"#;
         let ast = get_ast(template);
         insta::assert_yaml_snapshot!(ast);
     }
