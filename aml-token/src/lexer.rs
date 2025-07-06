@@ -1,6 +1,7 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
+use crate::Container;
 use crate::token::{Element, IntoToken, LexError, Operator, Primitive, Token, TokenKind};
 
 pub struct Lexer<'lex> {
@@ -125,20 +126,20 @@ impl<'lex> Lexer<'lex> {
             "as" => TokenKind::As,
             "text" => TokenKind::Element(Element::Text),
             "span" => TokenKind::Element(Element::Span),
-            "border" => TokenKind::Element(Element::Border),
-            "alignment" => TokenKind::Element(Element::Alignment),
-            "vstack" => TokenKind::Element(Element::VStack),
-            "hstack" => TokenKind::Element(Element::HStack),
-            "zstack" => TokenKind::Element(Element::ZStack),
-            "row" => TokenKind::Element(Element::Row),
-            "column" => TokenKind::Element(Element::Column),
-            "expand" => TokenKind::Element(Element::Expand),
-            "position" => TokenKind::Element(Element::Position),
-            "spacer" => TokenKind::Element(Element::Spacer),
-            "overflow" => TokenKind::Element(Element::Overflow),
-            "padding" => TokenKind::Element(Element::Padding),
-            "canvas" => TokenKind::Element(Element::Canvas),
-            "container" => TokenKind::Element(Element::Container),
+            "border" => TokenKind::Container(Container::Border),
+            "alignment" => TokenKind::Container(Container::Alignment),
+            "vstack" => TokenKind::Container(Container::VStack),
+            "hstack" => TokenKind::Container(Container::HStack),
+            "zstack" => TokenKind::Container(Container::ZStack),
+            "row" => TokenKind::Container(Container::Row),
+            "column" => TokenKind::Container(Container::Column),
+            "expand" => TokenKind::Container(Container::Expand),
+            "position" => TokenKind::Container(Container::Position),
+            "spacer" => TokenKind::Container(Container::Spacer),
+            "overflow" => TokenKind::Container(Container::Overflow),
+            "padding" => TokenKind::Container(Container::Padding),
+            "canvas" => TokenKind::Container(Container::Canvas),
+            "container" => TokenKind::Container(Container::Container),
             _ => TokenKind::Identifier((start_byte, end_byte + 1).into()),
         };
 

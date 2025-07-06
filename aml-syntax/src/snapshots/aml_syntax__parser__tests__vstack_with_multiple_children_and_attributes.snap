@@ -3,7 +3,8 @@ source: aml-syntax/src/parser.rs
 expression: ast
 ---
 nodes:
-  - VStack:
+  - Container:
+      kind: VStack
       children:
         - Text:
             values:

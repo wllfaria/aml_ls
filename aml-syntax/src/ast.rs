@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use aml_core::Location;
-use aml_token::{Primitive, TokenKind};
+use aml_token::{Container, Element, Primitive, TokenKind};
 use serde::Serialize;
 
 #[derive(Debug, Default)]
@@ -26,6 +26,12 @@ pub enum AstNode {
         location: Location,
         value: Primitive,
     },
+    Container {
+        kind: Container,
+        children: Vec<AstNode>,
+        attributes: Attributes,
+        location: Location,
+    },
     Text {
         values: Vec<AstNode>,
         attributes: Attributes,
@@ -34,16 +40,6 @@ pub enum AstNode {
     },
     Span {
         values: Vec<AstNode>,
-        attributes: Attributes,
-        location: Location,
-    },
-    VStack {
-        children: Vec<AstNode>,
-        attributes: Attributes,
-        location: Location,
-    },
-    HStack {
-        children: Vec<AstNode>,
         attributes: Attributes,
         location: Location,
     },
@@ -73,8 +69,7 @@ impl AstNode {
             AstNode::Primitive { location, .. } => *location,
             AstNode::Text { location, .. } => *location,
             AstNode::Span { location, .. } => *location,
-            AstNode::VStack { location, .. } => *location,
-            AstNode::HStack { location, .. } => *location,
+            AstNode::Container { location, .. } => *location,
             AstNode::Identifier { location } => *location,
             AstNode::Attribute { location, .. } => *location,
             AstNode::Declaration { location, .. } => *location,

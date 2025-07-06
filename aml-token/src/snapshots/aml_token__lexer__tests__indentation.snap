@@ -8,7 +8,7 @@ expression: tokens
     end_byte: 1
   value: "\n"
 - kind:
-    Element: VStack
+    Container: VStack
   location:
     start_byte: 1
     end_byte: 7

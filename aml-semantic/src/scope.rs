@@ -64,10 +64,7 @@ impl ScopeAnalyzer {
                     .iter()
                     .for_each(|attr| self.analyze_node(attr));
             }
-            AstNode::VStack { children, .. } => {
-                children.iter().for_each(|child| self.analyze_node(child))
-            }
-            AstNode::HStack { children, .. } => {
+            AstNode::Container { children, .. } => {
                 children.iter().for_each(|child| self.analyze_node(child))
             }
             AstNode::Attribute { .. } => {

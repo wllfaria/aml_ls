@@ -4,13 +4,13 @@ expression: ast
 ---
 nodes:
   - Container:
-      kind: VStack
+      kind: Border
       children: []
       location:
         start_byte: 0
         end_byte: 6
       attributes: []
-      original: vstack
+      original: border
 variables: {}
 scopes:
   - variables: []

@@ -102,6 +102,7 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
         | TokenKind::Eof
         | TokenKind::Error(_)
         | TokenKind::Element(_)
+        | TokenKind::Container(_)
         | TokenKind::Newline => {
             return Expr::Error {
                 location,

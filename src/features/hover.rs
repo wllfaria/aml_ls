@@ -1,5 +1,6 @@
 use aml_semantic::SymbolType;
 use aml_syntax::{Ast, AstNode, Expr};
+use aml_token::{Container, Element};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
@@ -77,19 +78,27 @@ impl HoverProvider {
             AstNode::Primitive { value, .. } => format!("{value:?}"),
             AstNode::Text { .. } => self.docs.text.into(),
             AstNode::Span { .. } => self.docs.span.into(),
-            AstNode::VStack { .. } => self.docs.vstack.into(),
-            AstNode::HStack { .. } => self.docs.hstack.into(),
+            AstNode::Container { kind, .. } => match kind {
+                Container::VStack => self.docs.vstack.into(),
+                Container::HStack => self.docs.hstack.into(),
+                Container::Border => self.docs.border.into(),
+                Container::Alignment => self.docs.alignment.into(),
+                Container::ZStack => self.docs.zstack.into(),
+                Container::Row => self.docs.row.into(),
+                Container::Column => self.docs.column.into(),
+                Container::Expand => self.docs.expand.into(),
+                Container::Position => self.docs.position.into(),
+                Container::Spacer => self.docs.spacer.into(),
+                Container::Overflow => self.docs.overflow.into(),
+                Container::Padding => self.docs.padding.into(),
+                Container::Canvas => self.docs.canvas.into(),
+                Container::Container => self.docs.container.into(),
+            },
             AstNode::Error { .. } => "error".into(),
             AstNode::String { .. } => "String literal".into(),
             AstNode::Identifier { .. } => "Identifier".into(),
             AstNode::Declaration { .. } => "Declaration".into(),
-            AstNode::Attribute { name, .. } => {
-                if let AstNode::Identifier { .. } = name.as_ref() {
-                    "Attribute".into()
-                } else {
-                    "Attribute".into()
-                }
-            }
+            AstNode::Attribute { .. } => "Attribute".into(),
         }
     }
 
@@ -175,33 +184,11 @@ fn find_node_in_subtree_with_location(
                 return Some((node, *location));
             }
         }
-        AstNode::VStack {
+        AstNode::Container {
             attributes,
             location,
             children,
-        } => {
-            for attribute in &attributes.attributes {
-                if let Some((found, loc)) =
-                    find_node_in_subtree_with_location(attribute, byte_offset)
-                {
-                    return Some((found, loc));
-                }
-            }
-
-            for child in children {
-                if let Some((found, loc)) = find_node_in_subtree_with_location(child, byte_offset) {
-                    return Some((found, loc));
-                }
-            }
-
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
-                return Some((node, *location));
-            }
-        }
-        AstNode::HStack {
-            attributes,
-            location,
-            children,
+            ..
         } => {
             for attribute in &attributes.attributes {
                 if let Some((found, loc)) =

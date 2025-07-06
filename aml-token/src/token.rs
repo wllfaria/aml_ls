@@ -26,11 +26,21 @@ pub enum TokenKind {
     Indent(usize),
     Operator(Operator),
     Element(Element),
+    Container(Container),
     Error(LexError),
     Primitive(Primitive),
     // TODO: store the string
     Identifier(Location),
     String(Location),
+}
+
+impl TokenKind {
+    pub fn expect_container(self) -> Container {
+        match self {
+            TokenKind::Container(container) => container,
+            _ => panic!("expected container, got: {self:?}"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Copy, PartialEq, PartialOrd)]
@@ -51,6 +61,10 @@ impl IntoToken for TokenKind {
 pub enum Element {
     Text,
     Span,
+}
+
+#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Container {
     Border,
     Alignment,
     VStack,
