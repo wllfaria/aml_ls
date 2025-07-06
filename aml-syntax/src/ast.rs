@@ -151,4 +151,25 @@ impl Expr {
             Expr::Call { location, .. } => *location,
         }
     }
+
+    pub fn has_error(&self) -> bool {
+        match self {
+            Expr::Error { .. } => true,
+            Expr::Ident { .. } => false,
+            Expr::Unary { expr, .. } => expr.has_error(),
+            Expr::Binary { lhs, rhs, .. } => lhs.has_error() || rhs.has_error(),
+            Expr::String { .. } => false,
+            Expr::Call { args, fun, .. } => {
+                let args_error = args.iter().any(|arg| arg.has_error());
+                let fun_error = fun.has_error();
+                args_error || fun_error
+            }
+            Expr::Primitive { .. } => false,
+            Expr::ArrayIndex { lhs, index, .. } => lhs.has_error() || index.has_error(),
+            Expr::List { items, .. } => items.iter().any(|item| item.has_error()),
+            Expr::Map { items, .. } => items
+                .iter()
+                .any(|(key, value)| key.has_error() || value.has_error()),
+        }
+    }
 }

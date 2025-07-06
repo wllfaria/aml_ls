@@ -1,6 +1,5 @@
 use aml_token::{Element, Operator, TokenKind, Tokens};
 
-use crate::Expr;
 use crate::ast::{Ast, AstNode, Attributes, Scope};
 use crate::expressions::parse_expression;
 
@@ -345,7 +344,7 @@ impl Parser {
             self.tokens.consume_all_whitespace();
             let value = parse_expression(&mut self.tokens);
 
-            if expression_has_error(&value) {
+            if value.has_error() {
                 loop {
                     match self.tokens.peek().kind() {
                         TokenKind::Operator(Operator::RBracket) => break,
@@ -394,34 +393,6 @@ impl Parser {
     }
 }
 
-fn expression_has_error(expr: &Expr) -> bool {
-    match expr {
-        Expr::Error { .. } => true,
-        Expr::Ident { .. } => false,
-        Expr::Unary { expr, .. } => expression_has_error(expr),
-        Expr::Binary { lhs, rhs, .. } => {
-            let lhs_error = expression_has_error(lhs);
-            let rhs_error = expression_has_error(rhs);
-            lhs_error || rhs_error
-        }
-        Expr::String { .. } => false,
-        Expr::Call { args, fun, .. } => {
-            let args_error = args.iter().any(expression_has_error);
-            let fun_error = expression_has_error(fun);
-            args_error || fun_error
-        }
-        Expr::Primitive { .. } => false,
-        Expr::ArrayIndex { lhs, index, .. } => {
-            let lhs_error = expression_has_error(lhs);
-            let index_error = expression_has_error(index);
-            lhs_error || index_error
-        }
-        Expr::List { items, .. } => items.iter().any(expression_has_error),
-        Expr::Map { items, .. } => items
-            .iter()
-            .any(|(key, value)| expression_has_error(key) || expression_has_error(value)),
-    }
-}
 
 #[cfg(test)]
 mod tests {
