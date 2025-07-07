@@ -1,0 +1,25 @@
+---
+source: aml-syntax/src/parser/tests.rs
+assertion_line: 45
+expression: ast
+---
+nodes:
+  - Span:
+      values:
+        - String:
+            value: "\"Hello\""
+            location:
+              start_byte: 5
+              end_byte: 12
+      attributes: []
+      value: "span \"Hello\""
+      location:
+        start_byte: 0
+        end_byte: 12
+      keyword:
+        start_byte: 0
+        end_byte: 4
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

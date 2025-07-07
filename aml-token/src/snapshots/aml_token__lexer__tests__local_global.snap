@@ -1,0 +1,105 @@
+---
+source: aml-token/src/lexer.rs
+expression: tokens
+---
+- kind: Newline
+  location:
+    start_byte: 0
+    end_byte: 1
+  value: "\n"
+- kind: Local
+  location:
+    start_byte: 1
+    end_byte: 6
+  value: local
+- kind:
+    Indent: 1
+  location:
+    start_byte: 6
+    end_byte: 7
+  value: " "
+- kind:
+    Identifier:
+      start_byte: 7
+      end_byte: 13
+  location:
+    start_byte: 7
+    end_byte: 13
+  value: my_var
+- kind:
+    Indent: 1
+  location:
+    start_byte: 13
+    end_byte: 14
+  value: " "
+- kind: Equal
+  location:
+    start_byte: 14
+    end_byte: 15
+  value: "="
+- kind:
+    Indent: 1
+  location:
+    start_byte: 15
+    end_byte: 16
+  value: " "
+- kind:
+    Primitive:
+      Int: 10
+  location:
+    start_byte: 16
+    end_byte: 18
+  value: "10"
+- kind: Newline
+  location:
+    start_byte: 18
+    end_byte: 19
+  value: "\n"
+- kind: Global
+  location:
+    start_byte: 19
+    end_byte: 25
+  value: global
+- kind:
+    Indent: 1
+  location:
+    start_byte: 25
+    end_byte: 26
+  value: " "
+- kind:
+    Identifier:
+      start_byte: 26
+      end_byte: 32
+  location:
+    start_byte: 26
+    end_byte: 32
+  value: my_var
+- kind:
+    Indent: 1
+  location:
+    start_byte: 32
+    end_byte: 33
+  value: " "
+- kind: Equal
+  location:
+    start_byte: 33
+    end_byte: 34
+  value: "="
+- kind:
+    Indent: 1
+  location:
+    start_byte: 34
+    end_byte: 35
+  value: " "
+- kind:
+    Primitive:
+      Int: 20
+  location:
+    start_byte: 35
+    end_byte: 37
+  value: "20"
+- kind: Newline
+  location:
+    start_byte: 37
+    end_byte: 38
+  value: "\n"

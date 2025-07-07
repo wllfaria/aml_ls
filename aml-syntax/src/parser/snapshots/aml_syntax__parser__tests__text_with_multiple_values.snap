@@ -1,0 +1,45 @@
+---
+source: aml-syntax/src/parser/tests.rs
+assertion_line: 38
+expression: ast
+---
+nodes:
+  - Text:
+      values:
+        - String:
+            value: "\"Hello\""
+            location:
+              start_byte: 5
+              end_byte: 12
+        - Identifier:
+            value: world
+            location:
+              start_byte: 13
+              end_byte: 18
+        - Primitive:
+            value:
+              Bool: true
+            location:
+              start_byte: 19
+              end_byte: 23
+            original: "true"
+        - Primitive:
+            value:
+              Int: 1
+            location:
+              start_byte: 24
+              end_byte: 25
+            original: "1"
+      attributes: []
+      children: []
+      text: "text \"Hello\" world true 1"
+      location:
+        start_byte: 0
+        end_byte: 25
+      keyword:
+        start_byte: 0
+        end_byte: 4
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

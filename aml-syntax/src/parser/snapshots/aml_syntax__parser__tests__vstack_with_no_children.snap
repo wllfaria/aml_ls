@@ -1,0 +1,21 @@
+---
+source: aml-syntax/src/parser/tests.rs
+assertion_line: 73
+expression: ast
+---
+nodes:
+  - Container:
+      kind: VStack
+      children: []
+      location:
+        start_byte: 0
+        end_byte: 6
+      attributes: []
+      original: vstack
+      keyword:
+        start_byte: 0
+        end_byte: 6
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

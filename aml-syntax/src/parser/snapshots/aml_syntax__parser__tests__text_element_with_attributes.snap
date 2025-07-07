@@ -1,0 +1,48 @@
+---
+source: aml-syntax/src/parser/tests.rs
+assertion_line: 24
+expression: ast
+---
+nodes:
+  - Text:
+      values:
+        - String:
+            value: "\"Hello\""
+            location:
+              start_byte: 27
+              end_byte: 34
+      attributes:
+        - Attribute:
+            name:
+              Identifier:
+                value: foreground
+                location:
+                  start_byte: 6
+                  end_byte: 16
+            value:
+              Primitive:
+                original: "#ff0000"
+                value:
+                  Hex:
+                    r: 255
+                    g: 0
+                    b: 0
+                location:
+                  start_byte: 18
+                  end_byte: 25
+            location:
+              start_byte: 6
+              end_byte: 25
+            original: "foreground: #ff0000"
+      children: []
+      text: "text [foreground: #ff0000] \"Hello\""
+      location:
+        start_byte: 0
+        end_byte: 34
+      keyword:
+        start_byte: 0
+        end_byte: 4
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

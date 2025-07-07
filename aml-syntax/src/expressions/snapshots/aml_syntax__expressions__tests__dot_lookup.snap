@@ -1,0 +1,36 @@
+---
+source: aml-syntax/src/expressions/tests.rs
+assertion_line: 70
+expression: parse(input)
+---
+Binary:
+  original: a.b.c
+  lhs:
+    Binary:
+      original: a.b
+      lhs:
+        Ident:
+          value: a
+          location:
+            start_byte: 0
+            end_byte: 1
+      rhs:
+        Ident:
+          value: b
+          location:
+            start_byte: 2
+            end_byte: 3
+      op: Dot
+      location:
+        start_byte: 0
+        end_byte: 3
+  rhs:
+    Ident:
+      value: c
+      location:
+        start_byte: 4
+        end_byte: 5
+  op: Dot
+  location:
+    start_byte: 0
+    end_byte: 5

@@ -1,0 +1,49 @@
+---
+source: aml-syntax/src/parser/tests.rs
+assertion_line: 163
+expression: ast
+---
+nodes:
+  - For:
+      binding:
+        Identifier:
+          value: item
+          location:
+            start_byte: 5
+            end_byte: 9
+      value:
+        Ident:
+          value: list_of_items
+          location:
+            start_byte: 13
+            end_byte: 26
+      children:
+        - Text:
+            values:
+              - Identifier:
+                  value: item
+                  location:
+                    start_byte: 36
+                    end_byte: 40
+            attributes: []
+            children: []
+            text: text item
+            location:
+              start_byte: 31
+              end_byte: 40
+            keyword:
+              start_byte: 31
+              end_byte: 35
+      location:
+        start_byte: 1
+        end_byte: 40
+      keyword:
+        start_byte: 1
+        end_byte: 4
+      original: "for item in list_of_items\n    text item"
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

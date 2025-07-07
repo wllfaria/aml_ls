@@ -1,0 +1,66 @@
+---
+source: aml-syntax/src/expressions/tests.rs
+assertion_line: 46
+expression: parse(input)
+---
+Call:
+  original: "fun(1, a + 2 * 3, 3)"
+  fun:
+    Ident:
+      value: fun
+      location:
+        start_byte: 0
+        end_byte: 3
+  args:
+    - Primitive:
+        original: "1"
+        value:
+          Int: 1
+        location:
+          start_byte: 4
+          end_byte: 5
+    - Binary:
+        original: a + 2 * 3
+        lhs:
+          Ident:
+            value: a
+            location:
+              start_byte: 7
+              end_byte: 8
+        rhs:
+          Binary:
+            original: 2 * 3
+            lhs:
+              Primitive:
+                original: "2"
+                value:
+                  Int: 2
+                location:
+                  start_byte: 11
+                  end_byte: 12
+            rhs:
+              Primitive:
+                original: "3"
+                value:
+                  Int: 3
+                location:
+                  start_byte: 15
+                  end_byte: 16
+            op: Mul
+            location:
+              start_byte: 11
+              end_byte: 16
+        op: Plus
+        location:
+          start_byte: 7
+          end_byte: 16
+    - Primitive:
+        original: "3"
+        value:
+          Int: 3
+        location:
+          start_byte: 18
+          end_byte: 19
+  location:
+    start_byte: 0
+    end_byte: 20
