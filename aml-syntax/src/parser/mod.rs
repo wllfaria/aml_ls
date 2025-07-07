@@ -1,13 +1,16 @@
 use aml_token::{Element, Operator, TokenKind, Tokens};
 
-use crate::ast::{Ast, AstNode, Attributes, Declaration, DeclarationKind, Scope};
+use crate::ast::{
+    Ast, AstNode, Attribute, Attributes, Component, ComponentSlot, ContainerNode, Declaration,
+    DeclarationKind, ErrorNode, For, PrimitiveNode, Scope, Span, Text,
+};
 use crate::expressions::parse_expression;
 
 #[cfg(test)]
 mod tests;
 
 #[cfg(test)]
-mod snapshots;
+pub(crate) mod snapshots;
 
 struct LocationCalculator;
 
@@ -150,10 +153,10 @@ impl Parser {
         let name = self.parse_identifier();
 
         let location = start_location.merge(name.location());
-        AstNode::ComponentSlot {
-            name: Box::new(name),
+        AstNode::ComponentSlot(ComponentSlot {
             location,
-        }
+            name: Box::new(name),
+        })
     }
 
     fn parse_component(&mut self) -> AstNode {
@@ -168,11 +171,11 @@ impl Parser {
             None => start_location.merge(name.location()),
         };
 
-        AstNode::Component {
+        AstNode::Component(Component {
             name: Box::new(name),
             location,
             attributes,
-        }
+        })
     }
 
     fn parse_text(&mut self, current_indent: usize) -> AstNode {
@@ -191,13 +194,13 @@ impl Parser {
             Some(&children),
         );
 
-        AstNode::Text {
+        AstNode::Text(Text {
             values,
             attributes,
             children,
             location,
             keyword: text.location(),
-        }
+        })
     }
 
     fn parse_span(&mut self) -> AstNode {
@@ -211,12 +214,12 @@ impl Parser {
         let location =
             LocationCalculator::merge_location_without_values(start_location, &attributes, &values);
 
-        AstNode::Span {
+        AstNode::Span(Span {
             values,
             attributes,
             location,
             keyword: span.location(),
-        }
+        })
     }
 
     fn parse_container(&mut self, current_indent: usize) -> AstNode {
@@ -232,13 +235,13 @@ impl Parser {
             &children,
         );
 
-        AstNode::Container {
+        AstNode::Container(ContainerNode {
             kind,
             children,
             attributes,
             location,
             keyword: token.location(),
-        }
+        })
     }
 
     fn parse_for_loop(&mut self, current_indent: usize) -> AstNode {
@@ -264,13 +267,13 @@ impl Parser {
             (_, location) => start_location.merge(location),
         };
 
-        AstNode::For {
+        AstNode::For(For {
             binding: Box::new(binding),
             value,
             children,
             location,
             keyword: keyword.location(),
-        }
+        })
     }
 
     fn parse_values(&mut self) -> Vec<AstNode> {
@@ -285,10 +288,10 @@ impl Parser {
                 TokenKind::String(_) => values.push(self.parse_string()),
                 token => {
                     self.tokens.consume();
-                    values.push(AstNode::Error {
+                    values.push(AstNode::Error(ErrorNode {
                         token,
                         location: next_token.location(),
-                    })
+                    }))
                 }
             }
         }
@@ -299,24 +302,24 @@ impl Parser {
         let primitive = self.tokens.next_token();
         let TokenKind::Primitive(value) = primitive.kind() else { unreachable!() };
         let location = primitive.location();
-        AstNode::Primitive { location, value }
+        AstNode::Primitive(PrimitiveNode { location, value })
     }
 
     fn parse_string(&mut self) -> AstNode {
         let token = self.tokens.next_token();
         let location = token.location();
-        AstNode::String { location }
+        AstNode::String(location)
     }
 
     fn parse_identifier(&mut self) -> AstNode {
         let token = self.tokens.next_token();
         let TokenKind::Identifier(location) = token.kind() else {
-            return AstNode::Error {
+            return AstNode::Error(ErrorNode {
                 location: token.location(),
                 token: token.kind(),
-            };
+            });
         };
-        AstNode::Identifier { location }
+        AstNode::Identifier(location)
     }
 
     fn parse_declaration(&mut self) -> AstNode {
@@ -338,7 +341,12 @@ impl Parser {
         let value = parse_expression(&mut self.tokens);
 
         let location = start_location.merge(value.location());
-        AstNode::Declaration(Declaration::new(kind, Box::new(name), value, location))
+        AstNode::Declaration(Declaration {
+            kind,
+            value,
+            location,
+            name: Box::new(name),
+        })
     }
 
     fn maybe_parse_attributes(&mut self) -> Attributes {
@@ -410,17 +418,17 @@ impl Parser {
             }
 
             let location = name.location().merge(value.location());
-            attributes.push(AstNode::Attribute {
+            attributes.push(AstNode::Attribute(Attribute {
                 name: Box::new(name),
                 value,
                 location,
-            });
+            }));
 
             self.skip_optional_comma();
         };
 
         Attributes {
-            attributes,
+            items: attributes,
             location: Some(start_location.merge(end_location)),
         }
     }

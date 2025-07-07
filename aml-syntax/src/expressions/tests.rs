@@ -2,12 +2,13 @@ use aml_token::{Lexer, Tokens};
 
 use super::snapshots::SnapshotExpr;
 use crate::expressions::precedences;
+use crate::parser::snapshots::ToSnapshot;
 
 fn parse(input: &str) -> SnapshotExpr<'_> {
     let tokens = Lexer::new(input).collect();
     let mut tokens = Tokens::new(tokens, input.len());
     let expression = super::parse_expression_inner(&mut tokens, precedences::INITIAL);
-    SnapshotExpr::from_expr(expression, input)
+    expression.into_snapshot(input)
 }
 
 #[test]

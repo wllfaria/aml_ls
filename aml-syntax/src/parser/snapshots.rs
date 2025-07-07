@@ -1,30 +1,242 @@
 use std::collections::HashMap;
 
 use aml_core::Location;
-use aml_token::{Container, Primitive};
+use aml_token::{Container, Primitive, TokenKind};
 use serde::Serialize;
 
-use crate::ast::{Ast, AstNode, Declaration, DeclarationKind, Scope};
+use crate::ast::*;
 use crate::expressions::snapshots::SnapshotExpr;
 
-#[derive(Debug, Serialize)]
-pub struct SnapshotAst<'ast> {
-    pub nodes: Vec<SnapshotAstNode<'ast>>,
-    pub variables: HashMap<String, Location>,
-    pub scopes: Vec<Scope>,
+pub trait ToSnapshot<'ast> {
+    type Item;
+    fn into_snapshot(self, content: &'ast str) -> Self::Item;
 }
 
-impl<'ast> SnapshotAst<'ast> {
-    pub fn from_ast(ast: Ast, content: &'ast str) -> Self {
-        Self {
-            nodes: ast
-                .nodes
-                .into_iter()
-                .map(|n| SnapshotAstNode::from_node(n, content))
-                .collect(),
-            variables: ast.variables,
-            scopes: ast.scopes,
+impl<'ast> ToSnapshot<'ast> for AstNode {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        match self {
+            AstNode::Component(component) => component.into_snapshot(content),
+            AstNode::ComponentSlot(component_slot) => component_slot.into_snapshot(content),
+            AstNode::Primitive(primitive_node) => primitive_node.into_snapshot(content),
+            AstNode::Container(container_node) => container_node.into_snapshot(content),
+            AstNode::Text(text) => text.into_snapshot(content),
+            AstNode::Span(span) => span.into_snapshot(content),
+            AstNode::Attribute(attribute) => attribute.into_snapshot(content),
+            AstNode::Declaration(declaration) => declaration.into_snapshot(content),
+            AstNode::For(for_loop) => for_loop.into_snapshot(content),
+            AstNode::Error(error_node) => error_node.into_snapshot(content),
+            AstNode::String(location) => SnapshotAstNode::String(SnapshotString {
+                location,
+                value: &content[location.to_range()],
+            }),
+            AstNode::Identifier(location) => SnapshotAstNode::Identifier(SnapshotIdentifier {
+                location,
+                value: &content[location.to_range()],
+            }),
         }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotString<'ast> {
+    pub value: &'ast str,
+    pub location: Location,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotComponent<'ast> {
+    pub name: Box<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub attributes: Vec<SnapshotAstNode<'ast>>,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for Component {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Component(SnapshotComponent {
+            location: self.location,
+            original: &content[self.location.to_range()],
+            name: Box::new(self.name.into_snapshot(content)),
+            attributes: self
+                .attributes
+                .items
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotComponentSlot<'ast> {
+    pub name: Box<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for ComponentSlot {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::ComponentSlot(SnapshotComponentSlot {
+            location: self.location,
+            original: &content[self.location.to_range()],
+            name: Box::new(self.name.into_snapshot(content)),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotPrimitive<'ast> {
+    pub value: Primitive,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for PrimitiveNode {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Primitive(SnapshotPrimitive {
+            location: self.location,
+            original: &content[self.location.to_range()],
+            value: self.value,
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotContainer<'ast> {
+    pub kind: Container,
+    pub children: Vec<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub attributes: Vec<SnapshotAstNode<'ast>>,
+    pub original: &'ast str,
+    pub keyword: Location,
+}
+
+impl<'ast> ToSnapshot<'ast> for ContainerNode {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Container(SnapshotContainer {
+            kind: self.kind,
+            keyword: self.keyword,
+            location: self.location,
+            children: self
+                .children
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            attributes: self
+                .attributes
+                .items
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            original: &content[self.location.to_range()],
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotText<'ast> {
+    pub values: Vec<SnapshotAstNode<'ast>>,
+    pub attributes: Vec<SnapshotAstNode<'ast>>,
+    pub children: Vec<SnapshotAstNode<'ast>>,
+    pub text: &'ast str,
+    pub location: Location,
+    pub keyword: Location,
+}
+
+impl<'ast> ToSnapshot<'ast> for Text {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Text(SnapshotText {
+            keyword: self.keyword,
+            location: self.location,
+            text: &content[self.location.to_range()],
+            values: self
+                .values
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            attributes: self
+                .attributes
+                .items
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            children: self
+                .children
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotSpan<'ast> {
+    pub values: Vec<SnapshotAstNode<'ast>>,
+    pub attributes: Vec<SnapshotAstNode<'ast>>,
+    pub value: &'ast str,
+    pub location: Location,
+    pub keyword: Location,
+}
+
+impl<'ast> ToSnapshot<'ast> for Span {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Span(SnapshotSpan {
+            keyword: self.keyword,
+            location: self.location,
+            value: &content[self.location.to_range()],
+            values: self
+                .values
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            attributes: self
+                .attributes
+                .items
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotIdentifier<'ast> {
+    pub value: &'ast str,
+    pub location: Location,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotAttribute<'ast> {
+    pub name: Box<SnapshotAstNode<'ast>>,
+    pub value: SnapshotExpr<'ast>,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for Attribute {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Attribute(SnapshotAttribute {
+            location: self.location,
+            value: self.value.into_snapshot(content),
+            original: &content[self.location.to_range()],
+            name: Box::new(self.name.into_snapshot(content)),
+        })
     }
 }
 
@@ -36,223 +248,100 @@ pub struct SnapshotDeclaration<'ast> {
     location: Location,
 }
 
-impl<'ast> SnapshotDeclaration<'ast> {
-    fn from_declaration(declaration: Declaration, content: &'ast str) -> Self {
-        Self {
-            kind: declaration.kind,
-            name: Box::new(SnapshotAstNode::from_node(*declaration.name, content)),
-            value: SnapshotExpr::from_expr(declaration.value, content),
-            location: declaration.location,
-        }
+impl<'ast> ToSnapshot<'ast> for Declaration {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Declaration(SnapshotDeclaration {
+            kind: self.kind,
+            location: self.location,
+            value: self.value.into_snapshot(content),
+            name: Box::new(self.name.into_snapshot(content)),
+        })
     }
 }
 
-impl<'ast> From<SnapshotDeclaration<'ast>> for SnapshotAstNode<'ast> {
-    fn from(declaration: SnapshotDeclaration<'ast>) -> Self {
-        Self::Declaration(declaration)
+#[derive(Debug, Serialize)]
+pub struct SnapshotFor<'ast> {
+    pub binding: Box<SnapshotAstNode<'ast>>,
+    pub value: SnapshotExpr<'ast>,
+    pub children: Vec<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub keyword: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for For {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::For(SnapshotFor {
+            keyword: self.keyword,
+            location: self.location,
+            value: self.value.into_snapshot(content),
+            original: &content[self.location.to_range()],
+            binding: Box::new(self.binding.into_snapshot(content)),
+            children: self
+                .children
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotError<'ast> {
+    pub token: TokenKind,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for ErrorNode {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Error(SnapshotError {
+            token: self.token,
+            location: self.location,
+            original: &content[self.location.to_range()],
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotAst<'ast> {
+    pub nodes: Vec<SnapshotAstNode<'ast>>,
+    pub variables: HashMap<String, Location>,
+    pub scopes: Vec<Scope>,
+}
+
+impl<'ast> SnapshotAst<'ast> {
+    pub fn from_ast(ast: Ast, content: &'ast str) -> Self {
+        Self {
+            scopes: ast.scopes,
+            variables: ast.variables,
+            nodes: ast
+                .nodes
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+        }
     }
 }
 
 #[derive(Debug, Serialize)]
 pub enum SnapshotAstNode<'ast> {
-    Primitive {
-        value: Primitive,
-        location: Location,
-        original: &'ast str,
-    },
-    String {
-        value: &'ast str,
-        location: Location,
-    },
-    Component {
-        name: Box<SnapshotAstNode<'ast>>,
-        location: Location,
-        attributes: Vec<SnapshotAstNode<'ast>>,
-        original: &'ast str,
-    },
-    ComponentSlot {
-        name: Box<SnapshotAstNode<'ast>>,
-        location: Location,
-        original: &'ast str,
-    },
-    Text {
-        values: Vec<SnapshotAstNode<'ast>>,
-        attributes: Vec<SnapshotAstNode<'ast>>,
-        children: Vec<SnapshotAstNode<'ast>>,
-        text: &'ast str,
-        location: Location,
-        keyword: Location,
-    },
-    Span {
-        values: Vec<SnapshotAstNode<'ast>>,
-        attributes: Vec<SnapshotAstNode<'ast>>,
-        value: &'ast str,
-        location: Location,
-        keyword: Location,
-    },
-    Container {
-        kind: Container,
-        children: Vec<SnapshotAstNode<'ast>>,
-        location: Location,
-        attributes: Vec<SnapshotAstNode<'ast>>,
-        original: &'ast str,
-        keyword: Location,
-    },
-    Identifier {
-        value: &'ast str,
-        location: Location,
-    },
-    Attribute {
-        name: Box<SnapshotAstNode<'ast>>,
-        value: SnapshotExpr<'ast>,
-        location: Location,
-        original: &'ast str,
-    },
+    String(SnapshotString<'ast>),
+    Component(SnapshotComponent<'ast>),
+    ComponentSlot(SnapshotComponentSlot<'ast>),
+    Primitive(SnapshotPrimitive<'ast>),
+    Container(SnapshotContainer<'ast>),
+    Text(SnapshotText<'ast>),
+    Span(SnapshotSpan<'ast>),
+    Identifier(SnapshotIdentifier<'ast>),
+    Attribute(SnapshotAttribute<'ast>),
     Declaration(SnapshotDeclaration<'ast>),
-    Error {
-        token: aml_token::TokenKind,
-        location: Location,
-    },
-    For {
-        binding: Box<SnapshotAstNode<'ast>>,
-        value: SnapshotExpr<'ast>,
-        children: Vec<SnapshotAstNode<'ast>>,
-        location: Location,
-        keyword: Location,
-        original: &'ast str,
-    },
-}
-
-impl<'ast> SnapshotAstNode<'ast> {
-    pub fn from_node(node: AstNode, content: &'ast str) -> Self {
-        match node {
-            AstNode::Primitive { location, value } => Self::Primitive {
-                location,
-                value,
-                original: &content[location.to_range()],
-            },
-            AstNode::String { location } => {
-                let value = &content[location.to_range()];
-                Self::String { location, value }
-            }
-            AstNode::Text {
-                values,
-                children,
-                location,
-                attributes,
-                keyword,
-            } => Self::Text {
-                keyword,
-                values: values
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                text: &content[location.to_range()],
-                attributes: attributes
-                    .attributes
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                children: children
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                location,
-            },
-            AstNode::Span {
-                values,
-                location,
-                attributes,
-                keyword,
-            } => Self::Span {
-                keyword,
-                values: values
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                attributes: attributes
-                    .attributes
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                value: &content[location.to_range()],
-                location,
-            },
-            AstNode::Container {
-                children,
-                location,
-                attributes,
-                kind,
-                keyword,
-            } => Self::Container {
-                keyword,
-                kind,
-                location,
-                children: children
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                attributes: attributes
-                    .attributes
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                original: &content[location.to_range()],
-            },
-            AstNode::Identifier { location } => Self::Identifier {
-                value: &content[location.to_range()],
-                location,
-            },
-            AstNode::Attribute {
-                name,
-                value,
-                location,
-            } => Self::Attribute {
-                location,
-                name: Box::new(SnapshotAstNode::from_node(*name, content)),
-                value: SnapshotExpr::from_expr(value, content),
-                original: &content[location.to_range()],
-            },
-            AstNode::Declaration(declaration) => {
-                SnapshotDeclaration::from_declaration(declaration, content).into()
-            }
-            AstNode::Error { location, token } => Self::Error { location, token },
-            AstNode::Component {
-                name,
-                attributes,
-                location,
-            } => Self::Component {
-                location,
-                original: &content[location.to_range()],
-                name: Box::new(SnapshotAstNode::from_node(*name, content)),
-                attributes: attributes
-                    .attributes
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-            },
-            AstNode::ComponentSlot { name, location } => Self::ComponentSlot {
-                location,
-                original: &content[location.to_range()],
-                name: Box::new(SnapshotAstNode::from_node(*name, content)),
-            },
-            AstNode::For {
-                binding,
-                value,
-                children,
-                location,
-                keyword,
-            } => Self::For {
-                location,
-                original: &content[location.to_range()],
-                binding: Box::new(SnapshotAstNode::from_node(*binding, content)),
-                value: SnapshotExpr::from_expr(value, content),
-                children: children
-                    .into_iter()
-                    .map(|n| SnapshotAstNode::from_node(n, content))
-                    .collect(),
-                keyword,
-            },
-        }
-    }
+    For(SnapshotFor<'ast>),
+    Error(SnapshotError<'ast>),
 }

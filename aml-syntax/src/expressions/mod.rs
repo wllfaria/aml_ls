@@ -1,7 +1,7 @@
 use aml_core::Location;
 use aml_token::{Operator, TokenKind, Tokens};
 
-use crate::ast::Expr;
+use crate::ast::{ArrayIndex, Binary, Call, ErrorExpr, Expr, List, Map, PrimitiveExpr, Unary};
 
 #[cfg(test)]
 mod tests;
@@ -59,12 +59,12 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
         }
         TokenKind::Operator(op @ Operator::Minus) => parse_unary_expression(tokens, op, location),
         TokenKind::Operator(op @ Operator::Not) => parse_unary_expression(tokens, op, location),
-        TokenKind::String(location) => Expr::String { location },
-        TokenKind::Primitive(primitive) => Expr::Primitive {
+        TokenKind::String(location) => Expr::String(location),
+        TokenKind::Primitive(primitive) => Expr::Primitive(PrimitiveExpr {
             value: primitive,
             location,
-        },
-        TokenKind::Identifier(location) => Expr::Ident { location },
+        }),
+        TokenKind::Identifier(location) => Expr::Ident(location),
 
         // all of these are invalid
         TokenKind::Operator(Operator::RBracket)
@@ -112,10 +112,10 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
         | TokenKind::Element(_)
         | TokenKind::Container(_)
         | TokenKind::Newline => {
-            return Expr::Error {
+            return Expr::Error(ErrorExpr {
                 location,
                 token: next.kind(),
-            };
+            });
         }
 
         TokenKind::Indent(_) => unreachable!(),
@@ -134,10 +134,10 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
             | Operator::DivEqual
             | Operator::ModEqual => {
                 let token = tokens.next_no_indent();
-                return Expr::Error {
+                return Expr::Error(ErrorExpr {
                     location: token.location(),
                     token: token.kind(),
-                };
+                });
             }
             _ => {}
         }
@@ -164,11 +164,11 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
                     TokenKind::Operator(Operator::RBracket)
                 ));
 
-                lhs = Expr::ArrayIndex {
+                lhs = Expr::ArrayIndex(ArrayIndex {
                     lhs: Box::new(lhs),
                     location: location.merge(next_token.location()),
                     index: Box::new(index),
-                };
+                });
 
                 continue;
             }
@@ -177,12 +177,12 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
 
         let rhs = parse_expression_inner(tokens, op_precedence);
         let location = location.merge(rhs.location());
-        lhs = Expr::Binary {
+        lhs = Expr::Binary(Binary {
             op,
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
             location,
-        };
+        });
     }
 
     lhs
@@ -192,11 +192,11 @@ fn parse_unary_expression(tokens: &mut Tokens, operator: Operator, location: Loc
     let expr = parse_expression_inner(tokens, precedences::PREFIX);
     let location = location.merge(expr.location());
 
-    Expr::Unary {
+    Expr::Unary(Unary {
         op: operator,
         expr: Box::new(expr),
         location,
-    }
+    })
 }
 
 fn parse_collection(tokens: &mut Tokens, start_location: Location) -> Expr {
@@ -210,10 +210,10 @@ fn parse_collection(tokens: &mut Tokens, start_location: Location) -> Expr {
                 break next_token.location();
             }
             TokenKind::Eof => {
-                items.push(Expr::Error {
+                items.push(Expr::Error(ErrorExpr {
                     location: next_token.location(),
                     token: next_token.kind(),
-                });
+                }));
                 break next_token.location();
             }
             TokenKind::Operator(Operator::RBracket) => {
@@ -230,7 +230,7 @@ fn parse_collection(tokens: &mut Tokens, start_location: Location) -> Expr {
     };
 
     let location = start_location.merge(end_location);
-    Expr::List { items, location }
+    Expr::List(List { items, location })
 }
 
 fn parse_map(tokens: &mut Tokens, start_location: Location) -> Expr {
@@ -261,10 +261,10 @@ fn parse_map(tokens: &mut Tokens, start_location: Location) -> Expr {
             _ => {
                 items.push((
                     key,
-                    Expr::Error {
+                    Expr::Error(ErrorExpr {
                         location: next_token.location(),
                         token: next_token.kind(),
-                    },
+                    }),
                 ));
                 break next_token.location();
             }
@@ -275,7 +275,7 @@ fn parse_map(tokens: &mut Tokens, start_location: Location) -> Expr {
 
     let location = start_location.merge(end_location);
 
-    Expr::Map { items, location }
+    Expr::Map(Map { items, location })
 }
 
 fn parse_function(tokens: &mut Tokens, lhs: Expr, start_location: Location) -> Expr {
@@ -293,10 +293,10 @@ fn parse_function(tokens: &mut Tokens, lhs: Expr, start_location: Location) -> E
                 break next_token.location();
             }
             TokenKind::Eof => {
-                args.push(Expr::Error {
+                args.push(Expr::Error(ErrorExpr {
                     location: next_token.location(),
                     token: next_token.kind(),
-                });
+                }));
                 break next_token.location();
             }
             _ => {}
@@ -306,10 +306,9 @@ fn parse_function(tokens: &mut Tokens, lhs: Expr, start_location: Location) -> E
 
     let location = start_location.merge(end_location);
 
-    Expr::Call {
+    Expr::Call(Call {
         fun: Box::new(lhs),
         args,
         location,
-    }
+    })
 }
-

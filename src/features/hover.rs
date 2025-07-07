@@ -75,10 +75,10 @@ impl HoverProvider {
 
     fn get_hover_content(&self, node: &AstNode) -> String {
         match node {
-            AstNode::Primitive { value, .. } => format!("{value:?}"),
-            AstNode::Text { .. } => self.docs.text.into(),
-            AstNode::Span { .. } => self.docs.span.into(),
-            AstNode::Container { kind, .. } => match kind {
+            AstNode::Primitive(primitive) => format!("{:?}", primitive.value),
+            AstNode::Text(_) => self.docs.text.into(),
+            AstNode::Span(_) => self.docs.span.into(),
+            AstNode::Container(container) => match container.kind {
                 Container::VStack => self.docs.vstack.into(),
                 Container::HStack => self.docs.hstack.into(),
                 Container::Border => self.docs.border.into(),
@@ -97,8 +97,8 @@ impl HoverProvider {
             AstNode::Error { .. } => "error".into(),
             AstNode::String { .. } => "String literal".into(),
             AstNode::Identifier { .. } => "Identifier".into(),
-            AstNode::Declaration { .. } => "Declaration".into(),
-            AstNode::Attribute { .. } => "Attribute".into(),
+            AstNode::Declaration(_) => "Declaration".into(),
+            AstNode::Attribute(_) => "Attribute".into(),
             _ => "Unknown".into(),
         }
     }
@@ -127,19 +127,13 @@ fn find_node_in_subtree_with_location(
     byte_offset: usize,
 ) -> Option<(&AstNode, aml_core::Location)> {
     match node {
-        AstNode::Primitive { location, .. } => {
-            if location.contains(byte_offset) {
-                return Some((node, *location));
+        AstNode::Primitive(primitive) => {
+            if primitive.location.contains(byte_offset) {
+                return Some((node, primitive.location));
             }
         }
-        AstNode::Text {
-            values,
-            attributes,
-            children,
-            keyword,
-            ..
-        } => {
-            for attribute in &attributes.attributes {
+        AstNode::Text(text) => {
+            for attribute in &text.attributes.items {
                 if let Some((found, loc)) =
                     find_node_in_subtree_with_location(attribute, byte_offset)
                 {
@@ -147,29 +141,24 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            for value in values {
+            for value in text.values.iter() {
                 if let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset) {
                     return Some((found, loc));
                 }
             }
 
-            for child in children {
+            for child in text.children.iter() {
                 if let Some((found, loc)) = find_node_in_subtree_with_location(child, byte_offset) {
                     return Some((found, loc));
                 }
             }
 
-            if keyword.contains(byte_offset) {
-                return Some((node, *keyword));
+            if text.keyword.contains(byte_offset) {
+                return Some((node, text.keyword));
             }
         }
-        AstNode::Span {
-            values,
-            attributes,
-            keyword,
-            ..
-        } => {
-            for attribute in &attributes.attributes {
+        AstNode::Span(span) => {
+            for attribute in &span.attributes.items {
                 if let Some((found, loc)) =
                     find_node_in_subtree_with_location(attribute, byte_offset)
                 {
@@ -177,23 +166,18 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            for value in values {
+            for value in span.values.iter() {
                 if let Some((found, loc)) = find_node_in_subtree_with_location(value, byte_offset) {
                     return Some((found, loc));
                 }
             }
 
-            if keyword.contains(byte_offset) {
-                return Some((node, *keyword));
+            if span.keyword.contains(byte_offset) {
+                return Some((node, span.keyword));
             }
         }
-        AstNode::Container {
-            attributes,
-            children,
-            keyword,
-            ..
-        } => {
-            for attribute in &attributes.attributes {
+        AstNode::Container(container) => {
+            for attribute in &container.attributes.items {
                 if let Some((found, loc)) =
                     find_node_in_subtree_with_location(attribute, byte_offset)
                 {
@@ -201,80 +185,82 @@ fn find_node_in_subtree_with_location(
                 }
             }
 
-            for child in children {
+            for child in container.children.iter() {
                 if let Some((found, loc)) = find_node_in_subtree_with_location(child, byte_offset) {
                     return Some((found, loc));
                 }
             }
 
-            if keyword.contains(byte_offset) {
-                return Some((node, *keyword));
+            if container.keyword.contains(byte_offset) {
+                return Some((node, container.keyword));
             }
         }
-        AstNode::String { location } => {
+        AstNode::String(location) => {
             if location.contains(byte_offset) {
                 return Some((node, *location));
             }
         }
-        AstNode::Identifier { location } => {
+        AstNode::Identifier(location) => {
             if location.contains(byte_offset) {
                 return Some((node, *location));
             }
         }
-        AstNode::Attribute { name, value, .. } => {
-            if let Some((found, loc)) = find_node_in_subtree_with_location(name, byte_offset) {
+        AstNode::Attribute(attribute) => {
+            if let Some((found, loc)) =
+                find_node_in_subtree_with_location(&attribute.name, byte_offset)
+            {
                 return Some((found, loc));
             }
 
-            if let Some(location) = get_expr_location_at_offset(value, byte_offset) {
+            if let Some(location) = get_expr_location_at_offset(&attribute.value, byte_offset) {
                 return Some((node, location)); // Return the attribute node with the expression location
             }
         }
-        AstNode::Declaration { .. } => {}
+        AstNode::Declaration(_) => {}
         AstNode::Error { .. } => {}
-        AstNode::Component { .. } => {}
+        AstNode::Component(_) => {}
         AstNode::ComponentSlot { .. } => {}
-        AstNode::For { .. } => {}
+        AstNode::For(_) => {}
     }
     None
 }
 
 fn get_expr_location_at_offset(expr: &Expr, byte_offset: usize) -> Option<aml_core::Location> {
     match expr {
-        Expr::String { location } => {
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+        Expr::String(location) => {
+            if location.contains(byte_offset) {
                 Some(*location)
             } else {
                 None
             }
         }
-        Expr::Ident { location } => {
-            if byte_offset >= location.start_byte && byte_offset <= location.end_byte {
+        Expr::Ident(location) => {
+            if location.contains(byte_offset) {
                 Some(*location)
             } else {
                 None
             }
         }
-        Expr::Unary { expr, .. } => get_expr_location_at_offset(expr, byte_offset),
-        Expr::Binary { lhs, rhs, .. } => get_expr_location_at_offset(lhs, byte_offset)
-            .or_else(|| get_expr_location_at_offset(rhs, byte_offset)),
-        Expr::Call { fun, args, .. } => {
-            get_expr_location_at_offset(fun, byte_offset).or_else(|| {
-                args.iter()
-                    .find_map(|arg| get_expr_location_at_offset(arg, byte_offset))
-            })
-        }
-        Expr::ArrayIndex { lhs, index, .. } => get_expr_location_at_offset(lhs, byte_offset)
-            .or_else(|| get_expr_location_at_offset(index, byte_offset)),
-        Expr::List { items, .. } => items
+        Expr::Unary(unary) => get_expr_location_at_offset(&unary.expr, byte_offset),
+        Expr::Binary(binary) => get_expr_location_at_offset(&binary.lhs, byte_offset)
+            .or_else(|| get_expr_location_at_offset(&binary.rhs, byte_offset)),
+        Expr::Call(call) => get_expr_location_at_offset(&call.fun, byte_offset).or_else(|| {
+            call.args
+                .iter()
+                .find_map(|arg| get_expr_location_at_offset(arg, byte_offset))
+        }),
+        Expr::ArrayIndex(array_index) => get_expr_location_at_offset(&array_index.lhs, byte_offset)
+            .or_else(|| get_expr_location_at_offset(&array_index.index, byte_offset)),
+        Expr::List(list) => list
+            .items
             .iter()
             .find_map(|expr| get_expr_location_at_offset(expr, byte_offset)),
-        Expr::Map { items, .. } => items.iter().find_map(|(key, value)| {
+        Expr::Map(map) => map.items.iter().find_map(|(key, value)| {
             get_expr_location_at_offset(key, byte_offset)
                 .or_else(|| get_expr_location_at_offset(value, byte_offset))
         }),
-        Expr::Primitive { location, .. } => Some(*location),
-        Expr::Error { location, .. } => Some(*location),
+        Expr::Primitive(primitive) => Some(primitive.location),
+        Expr::Error(error) => Some(error.location),
     }
 }
 

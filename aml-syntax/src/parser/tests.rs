@@ -1,7 +1,7 @@
 use aml_token::{Lexer, Tokens};
 
-use crate::parser::Parser;
 use super::snapshots::SnapshotAst;
+use crate::parser::Parser;
 
 fn get_ast(template: &str) -> SnapshotAst<'_> {
     let tokens = Lexer::new(template).collect::<Vec<_>>();

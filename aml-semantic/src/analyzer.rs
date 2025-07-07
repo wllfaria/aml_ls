@@ -1,5 +1,7 @@
 use aml_core::Location;
-use aml_syntax::ast::{Attributes, Declaration};
+use aml_syntax::ast::{
+    ArrayIndex, Attributes, Binary, Call, Declaration, List, Map, PrimitiveExpr, Unary,
+};
 use aml_syntax::{Ast, AstNode, Expr};
 use aml_token::{Operator, Primitive};
 
@@ -47,8 +49,6 @@ impl<'source> SemanticAnalyzer<'source> {
             self.analyze_node(node);
         }
 
-        ast.nodes.iter().for_each(|node| self.analyze_node(node));
-
         SemanticInfo {
             symbol_table: std::mem::take(&mut self.symbol_table),
             diagnostics: std::mem::take(&mut self.diagnostics),
@@ -57,16 +57,19 @@ impl<'source> SemanticAnalyzer<'source> {
 
     fn collect_globals(&mut self, node: &AstNode) {
         match node {
-            AstNode::Text { children, .. } => children
+            AstNode::Text(text) => text
+                .children
                 .iter()
                 .for_each(|child| self.collect_globals(child)),
             AstNode::Declaration(declaration) if declaration.is_global() => {
                 self.declare_variable(declaration)
             }
-            AstNode::Container { children, .. } => children
+            AstNode::Container(container) => container
+                .children
                 .iter()
                 .for_each(|child| self.collect_globals(child)),
-            AstNode::For { children, .. } => children
+            AstNode::For(for_node) => for_node
+                .children
                 .iter()
                 .for_each(|child| self.collect_globals(child)),
             _ => {}
@@ -84,20 +87,18 @@ impl<'source> SemanticAnalyzer<'source> {
 
     fn analyze_node(&mut self, node: &AstNode) {
         match node {
-            AstNode::Text {
-                values,
-                attributes,
-                children,
-                location,
-                ..
-            } => self.analyze_text_element(values, attributes, children, *location),
-            AstNode::Span {
-                values, attributes, ..
-            } => self.analyze_span_element(values, attributes),
-            AstNode::Container { children, .. } => {
-                children.iter().for_each(|child| self.analyze_node(child))
-            }
-            AstNode::Attribute { value, .. } => _ = self.analyze_expression(value),
+            AstNode::Text(text) => self.analyze_text_element(
+                &text.values,
+                &text.attributes,
+                &text.children,
+                text.location,
+            ),
+            AstNode::Span(span) => self.analyze_span_element(&span.values, &span.attributes),
+            AstNode::Container(container) => container
+                .children
+                .iter()
+                .for_each(|child| self.analyze_node(child)),
+            AstNode::Attribute(attribute) => _ = self.analyze_expression(&attribute.value),
             AstNode::Identifier { .. } => {}
             AstNode::String { .. } => {}
             AstNode::Primitive { .. } => {}
@@ -127,7 +128,7 @@ impl<'source> SemanticAnalyzer<'source> {
     ) {
         self.symbol_table.push_scope(None);
         attributes
-            .attributes
+            .items
             .iter()
             .for_each(|attr| self.analyze_node(attr));
         self.validate_text_element_value(value, location);
@@ -137,7 +138,7 @@ impl<'source> SemanticAnalyzer<'source> {
 
     fn analyze_span_element(&mut self, values: &[AstNode], attributes: &Attributes) {
         attributes
-            .attributes
+            .items
             .iter()
             .for_each(|attr| self.analyze_node(attr));
 
@@ -179,23 +180,21 @@ impl<'source> SemanticAnalyzer<'source> {
 
     fn analyze_expression(&mut self, expr: &Expr) -> ValueType {
         match expr {
-            Expr::String { .. } => ValueType::String,
-            Expr::Primitive { value, .. } => self.infer_primitive_type(value),
-            Expr::Ident { location } => self.resolve_identifier_type(*location),
-            Expr::List { items, .. } => {
-                ValueType::List(Box::new(self.infer_collection_element_type(items)))
-            }
-            Expr::Map { items, .. } => self.infer_map_type(items),
-            Expr::Binary { lhs, rhs, op, .. } => self.infer_binary_expression_type(lhs, rhs, op),
-            Expr::Unary { expr, op, .. } => self.infer_unary_expression_type(expr, op),
-            Expr::Call { fun, args, .. } => self.analyze_function_call(fun, args),
-            Expr::ArrayIndex { lhs, index, .. } => self.analyze_array_access(lhs, index),
-            Expr::Error { .. } => todo!(),
+            Expr::String(_) => ValueType::String,
+            Expr::Primitive(primitive) => self.infer_primitive_type(primitive),
+            Expr::Ident(location) => self.resolve_identifier_type(*location),
+            Expr::List(list) => self.infer_collection_element_type(list),
+            Expr::Map(map) => self.infer_map_type(map),
+            Expr::Binary(binary) => self.infer_binary_expression_type(binary),
+            Expr::Unary(unary) => self.infer_unary_expression_type(unary),
+            Expr::Call(call) => self.analyze_function_call(call),
+            Expr::ArrayIndex(array_index) => self.analyze_array_access(array_index),
+            Expr::Error(_) => todo!(),
         }
     }
 
-    fn infer_primitive_type(&self, primitive: &Primitive) -> ValueType {
-        match primitive {
+    fn infer_primitive_type(&self, primitive: &PrimitiveExpr) -> ValueType {
+        match primitive.value {
             Primitive::Bool(_) => ValueType::Boolean,
             Primitive::Int(_) => ValueType::Number,
             Primitive::Float(_) => ValueType::Number,
@@ -221,16 +220,17 @@ impl<'source> SemanticAnalyzer<'source> {
         }
     }
 
-    fn infer_collection_element_type(&mut self, exprs: &[Expr]) -> ValueType {
-        exprs
+    fn infer_collection_element_type(&mut self, list: &List) -> ValueType {
+        list.items
             .iter()
             .map(|expr| self.analyze_expression(expr))
             .find(|t| !matches!(t, ValueType::Unknown))
             .unwrap_or(ValueType::Unknown)
     }
 
-    fn infer_map_type(&mut self, items: &[(Expr, Expr)]) -> ValueType {
-        let (key_type, value_type) = items
+    fn infer_map_type(&mut self, map: &Map) -> ValueType {
+        let (key_type, value_type) = map
+            .items
             .iter()
             .map(|(key, val)| (self.analyze_expression(key), self.analyze_expression(val)))
             .fold(
@@ -246,35 +246,35 @@ impl<'source> SemanticAnalyzer<'source> {
         ValueType::Map(Box::new(key_type), Box::new(value_type))
     }
 
-    fn infer_binary_expression_type(&mut self, lhs: &Expr, rhs: &Expr, op: &Operator) -> ValueType {
-        let lhs_type = self.analyze_expression(lhs);
-        let rhs_type = self.analyze_expression(rhs);
-        let expected_type = self.get_operator_result_type(op);
+    fn infer_binary_expression_type(&mut self, binary: &Binary) -> ValueType {
+        let lhs_type = self.analyze_expression(&binary.lhs);
+        let rhs_type = self.analyze_expression(&binary.rhs);
+        let expected_type = self.get_operator_result_type(binary.op);
 
-        self.validate_operand_types(&lhs_type, &rhs_type, &expected_type, op);
+        self.validate_operand_types(&lhs_type, &rhs_type, &expected_type, binary.op);
         expected_type
     }
 
-    fn infer_unary_expression_type(&mut self, expr: &Expr, op: &Operator) -> ValueType {
-        let expr_type = self.analyze_expression(expr);
-        match op {
+    fn infer_unary_expression_type(&mut self, unary: &Unary) -> ValueType {
+        let expr_type = self.analyze_expression(&unary.expr);
+        match unary.op {
             Operator::Not => ValueType::Boolean,
             Operator::Minus => ValueType::Number,
             _ => expr_type,
         }
     }
 
-    fn analyze_function_call(&mut self, fun: &Expr, args: &[Expr]) -> ValueType {
-        self.analyze_expression(fun);
-        for arg in args {
+    fn analyze_function_call(&mut self, call: &Call) -> ValueType {
+        self.analyze_expression(&call.fun);
+        for arg in call.args.iter() {
             self.analyze_expression(arg);
         }
         ValueType::Unknown
     }
 
-    fn analyze_array_access(&mut self, lhs: &Expr, index: &Expr) -> ValueType {
-        let lhs_type = self.analyze_expression(lhs);
-        self.analyze_expression(index);
+    fn analyze_array_access(&mut self, array_index: &ArrayIndex) -> ValueType {
+        let lhs_type = self.analyze_expression(&array_index.lhs);
+        self.analyze_expression(&array_index.index);
 
         match lhs_type {
             ValueType::List(element_type) => *element_type,
@@ -282,7 +282,7 @@ impl<'source> SemanticAnalyzer<'source> {
         }
     }
 
-    fn get_operator_result_type(&self, op: &Operator) -> ValueType {
+    fn get_operator_result_type(&self, op: Operator) -> ValueType {
         match op {
             Operator::Plus | Operator::Minus | Operator::Mul | Operator::Div | Operator::Mod => {
                 ValueType::Number
@@ -304,7 +304,7 @@ impl<'source> SemanticAnalyzer<'source> {
         lhs_type: &ValueType,
         rhs_type: &ValueType,
         expected_type: &ValueType,
-        _op: &Operator,
+        _op: Operator,
     ) {
         if lhs_type != expected_type && !matches!(lhs_type, ValueType::Unknown) {
             // TODO(wiru): add location information and improve diagnostic message
@@ -316,8 +316,8 @@ impl<'source> SemanticAnalyzer<'source> {
 
     fn get_node_text(&self, node: &AstNode) -> &'source str {
         match node {
-            AstNode::Identifier { location } => &self.content[location.to_range()],
-            AstNode::String { location } => &self.content[location.to_range()],
+            AstNode::Identifier(location) => &self.content[location.to_range()],
+            AstNode::String(location) => &self.content[location.to_range()],
             _ => panic!("Unsupported node type for text extraction"),
         }
     }

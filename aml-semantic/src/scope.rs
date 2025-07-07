@@ -46,27 +46,26 @@ impl ScopeAnalyzer {
     fn analyze_node(&mut self, node: &AstNode) {
         match node {
             AstNode::Primitive { .. } => {}
-            AstNode::Text {
-                children, location, ..
-            } => {
+            AstNode::Text(text) => {
                 // text elements create new scopes
-                self.push_scope(Some(self.current_scope), *location);
+                self.push_scope(Some(self.current_scope), text.location);
 
-                for child in children {
+                for child in &text.children {
                     self.analyze_node(child);
                 }
 
-                self.pop_scope(*location);
+                self.pop_scope(text.location);
             }
-            AstNode::Span { attributes, .. } => {
-                attributes
-                    .attributes
+            AstNode::Span(span) => {
+                span.attributes
+                    .items
                     .iter()
                     .for_each(|attr| self.analyze_node(attr));
             }
-            AstNode::Container { children, .. } => {
-                children.iter().for_each(|child| self.analyze_node(child))
-            }
+            AstNode::Container(container) => container
+                .children
+                .iter()
+                .for_each(|child| self.analyze_node(child)),
             AstNode::Attribute { .. } => {
                 // if let Some(var_name) = self.get_attribute_name(name) {
                 //     self.declare_variable(var_name);
