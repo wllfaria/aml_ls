@@ -79,10 +79,10 @@ impl SymbolTable {
             name: name.clone(),
             location,
             symbol_type,
-            scope_id: 0,
+            scope_id: self.current_scope,
         };
 
-        self.scopes[0].symbols.push(name.clone());
+        self.scopes[self.current_scope].symbols.push(name.clone());
         self.symbols.entry(name).or_default().push(symbol);
     }
 

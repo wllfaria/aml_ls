@@ -99,6 +99,8 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
         | TokenKind::Component
         | TokenKind::ComponentSlot
         | TokenKind::Decl
+        | TokenKind::Local
+        | TokenKind::Global
         | TokenKind::Eof
         | TokenKind::Error(_)
         | TokenKind::Element(_)

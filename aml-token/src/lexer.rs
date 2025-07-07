@@ -119,6 +119,8 @@ impl<'lex> Lexer<'lex> {
             "true" => TokenKind::Primitive(Primitive::Bool(true)),
             "false" => TokenKind::Primitive(Primitive::Bool(false)),
             "let" => TokenKind::Decl,
+            "local" => TokenKind::Local,
+            "global" => TokenKind::Global,
             "switch" => TokenKind::Switch,
             "case" => TokenKind::Case,
             "default" => TokenKind::Default,
@@ -325,6 +327,19 @@ vstack        // 0 spaces
 vstack [width: 10, height: 3]
     text [foreground: "red"] "Hello you"
     border [height: -10]
+"#;
+        let tokens = Lexer::new(template)
+            .map(|t| SnapshotToken::from_token(t, template))
+            .collect::<Vec<_>>();
+
+        insta::assert_yaml_snapshot!(tokens);
+    }
+
+    #[test]
+    fn test_local_global() {
+        let template = r#"
+local my_var = 10
+global my_var = 20
 "#;
         let tokens = Lexer::new(template)
             .map(|t| SnapshotToken::from_token(t, template))

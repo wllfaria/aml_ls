@@ -1,6 +1,6 @@
 use aml_token::{Element, Operator, TokenKind, Tokens};
 
-use crate::ast::{Ast, AstNode, Attributes, Scope};
+use crate::ast::{Ast, AstNode, Attributes, Declaration, DeclarationKind, Scope};
 use crate::expressions::parse_expression;
 
 struct LocationCalculator;
@@ -107,6 +107,8 @@ impl Parser {
             TokenKind::String(_) => self.parse_string(),
             TokenKind::Identifier(_) => self.parse_identifier(),
             TokenKind::Decl => self.parse_declaration(),
+            TokenKind::Local => self.parse_declaration(),
+            TokenKind::Global => self.parse_declaration(),
             TokenKind::Component => self.parse_component(),
             TokenKind::ComponentSlot => self.parse_component_slot(),
             TokenKind::For => self.parse_for_loop(current_indent),
@@ -315,6 +317,13 @@ impl Parser {
         let keyword = self.tokens.next_token();
         let start_location = keyword.location();
 
+        let kind = match keyword.kind() {
+            TokenKind::Local => DeclarationKind::Local,
+            TokenKind::Decl => DeclarationKind::Local,
+            TokenKind::Global => DeclarationKind::Global,
+            _ => unreachable!(),
+        };
+
         self.tokens.consume_indent();
         let name = self.parse_identifier();
 
@@ -323,11 +332,7 @@ impl Parser {
         let value = parse_expression(&mut self.tokens);
 
         let location = start_location.merge(value.location());
-        AstNode::Declaration {
-            name: Box::new(name),
-            value,
-            location,
-        }
+        AstNode::Declaration(Declaration::new(kind, Box::new(name), value, location))
     }
 
     fn maybe_parse_attributes(&mut self) -> Attributes {
@@ -470,6 +475,31 @@ mod tests {
     }
 
     #[derive(Debug, Serialize)]
+    pub struct SnapshotDeclaration<'ast> {
+        kind: DeclarationKind,
+        name: Box<SnapshotAstNode<'ast>>,
+        value: SnapshotExpr<'ast>,
+        location: Location,
+    }
+
+    impl<'ast> SnapshotDeclaration<'ast> {
+        fn from_declaration(declaration: Declaration, content: &'ast str) -> Self {
+            Self {
+                kind: declaration.kind,
+                name: Box::new(SnapshotAstNode::from_node(*declaration.name, content)),
+                value: SnapshotExpr::from_expr(declaration.value, content),
+                location: declaration.location,
+            }
+        }
+    }
+
+    impl<'ast> From<SnapshotDeclaration<'ast>> for SnapshotAstNode<'ast> {
+        fn from(declaration: SnapshotDeclaration<'ast>) -> Self {
+            Self::Declaration(declaration)
+        }
+    }
+
+    #[derive(Debug, Serialize)]
     enum SnapshotAstNode<'ast> {
         Primitive {
             value: Primitive,
@@ -524,11 +554,7 @@ mod tests {
             location: Location,
             original: &'ast str,
         },
-        Declaration {
-            name: Box<SnapshotAstNode<'ast>>,
-            value: SnapshotExpr<'ast>,
-            location: Location,
-        },
+        Declaration(SnapshotDeclaration<'ast>),
         Error {
             token: TokenKind,
             location: Location,
@@ -633,15 +659,9 @@ mod tests {
                     value: SnapshotExpr::from_expr(value, content),
                     original: &content[location.to_range()],
                 },
-                AstNode::Declaration {
-                    name,
-                    value,
-                    location,
-                } => Self::Declaration {
-                    name: Box::new(SnapshotAstNode::from_node(*name, content)),
-                    value: SnapshotExpr::from_expr(value, content),
-                    location,
-                },
+                AstNode::Declaration(declaration) => {
+                    SnapshotDeclaration::from_declaration(declaration, content).into()
+                }
                 AstNode::Error { location, token } => Self::Error { location, token },
                 AstNode::Component {
                     name,

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use aml_core::Location;
-use aml_token::{Container, Element, Primitive, TokenKind};
+use aml_token::{Container, Primitive, TokenKind};
 use serde::Serialize;
 
 #[derive(Debug, Default)]
@@ -15,6 +15,39 @@ pub struct Ast {
 pub struct Attributes {
     pub attributes: Vec<AstNode>,
     pub location: Option<Location>,
+}
+
+#[derive(Debug, Serialize)]
+pub enum DeclarationKind {
+    Local,
+    Global,
+}
+
+#[derive(Debug)]
+pub struct Declaration {
+    pub kind: DeclarationKind,
+    pub name: Box<AstNode>,
+    pub value: Expr,
+    pub location: Location,
+}
+
+impl Declaration {
+    pub fn new(kind: DeclarationKind, name: Box<AstNode>, value: Expr, location: Location) -> Self {
+        Self {
+            kind,
+            name,
+            value,
+            location,
+        }
+    }
+
+    pub fn is_global(&self) -> bool {
+        matches!(self.kind, DeclarationKind::Global)
+    }
+
+    pub fn is_local(&self) -> bool {
+        !self.is_global()
+    }
 }
 
 #[derive(Debug)]
@@ -70,11 +103,7 @@ pub enum AstNode {
         value: Expr,
         location: Location,
     },
-    Declaration {
-        name: Box<AstNode>,
-        value: Expr,
-        location: Location,
-    },
+    Declaration(Declaration),
     Error {
         token: TokenKind,
         location: Location,
@@ -92,7 +121,7 @@ impl AstNode {
             AstNode::Identifier { location } => *location,
             AstNode::For { location, .. } => *location,
             AstNode::Attribute { location, .. } => *location,
-            AstNode::Declaration { location, .. } => *location,
+            AstNode::Declaration(declaration) => declaration.location,
             AstNode::Error { location, .. } => *location,
             AstNode::Component { location, .. } => *location,
             AstNode::ComponentSlot { location, .. } => *location,

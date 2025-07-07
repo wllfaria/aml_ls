@@ -20,6 +20,8 @@ pub enum TokenKind {
     Component,
     ComponentSlot,
     Decl,
+    Global,
+    Local,
     Eof,
 
     Newline,

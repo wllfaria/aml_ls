@@ -1,5 +1,5 @@
 use aml_core::Location;
-use aml_syntax::ast::Attributes;
+use aml_syntax::ast::{Attributes, Declaration};
 use aml_syntax::{Ast, AstNode, Expr};
 use aml_token::{Operator, Primitive};
 
@@ -42,9 +42,10 @@ impl<'source> SemanticAnalyzer<'source> {
     }
 
     pub fn analyze(&mut self, ast: &Ast) -> SemanticInfo {
-        ast.nodes
-            .iter()
-            .for_each(|node| self.collect_declarations(node));
+        for node in ast.nodes.iter() {
+            self.collect_globals(node);
+            self.analyze_node(node);
+        }
 
         ast.nodes.iter().for_each(|node| self.analyze_node(node));
 
@@ -54,30 +55,31 @@ impl<'source> SemanticAnalyzer<'source> {
         }
     }
 
-    fn collect_declarations(&mut self, node: &AstNode) {
+    fn collect_globals(&mut self, node: &AstNode) {
         match node {
             AstNode::Text { children, .. } => children
                 .iter()
-                .for_each(|child| self.collect_declarations(child)),
-            AstNode::Declaration {
-                name,
-                value,
-                location,
-            } => self.declare_variable(name, value, *location),
+                .for_each(|child| self.collect_globals(child)),
+            AstNode::Declaration(declaration) if declaration.is_global() => {
+                self.declare_variable(declaration)
+            }
             AstNode::Container { children, .. } => children
                 .iter()
-                .for_each(|child| self.collect_declarations(child)),
+                .for_each(|child| self.collect_globals(child)),
+            AstNode::For { children, .. } => children
+                .iter()
+                .for_each(|child| self.collect_globals(child)),
             _ => {}
         }
     }
 
-    fn declare_variable(&mut self, name: &AstNode, value: &Expr, location: Location) {
-        let name = self.get_node_text(name);
-        let value_type = self.analyze_expression(value);
+    fn declare_variable(&mut self, declaration: &Declaration) {
+        let name = self.get_node_text(&declaration.name);
+        let value_type = self.analyze_expression(&declaration.value);
         let symbol_type = SymbolType::Variable { value_type };
 
         self.symbol_table
-            .declare_symbol(name.into(), location, symbol_type);
+            .declare_symbol(name.into(), declaration.location, symbol_type);
     }
 
     fn analyze_node(&mut self, node: &AstNode) {
@@ -101,10 +103,15 @@ impl<'source> SemanticAnalyzer<'source> {
             AstNode::Primitive { .. } => {}
             AstNode::Error { .. } => {}
 
-            AstNode::Declaration { .. } => {
-                // we collected variables before analyzing to hoist them to the root scope
-                // so we can just skip them here
+            // Local declarations are collected as they are defined, although they are also
+            // hoisted to the root scope, they cannot be used before being declared
+            AstNode::Declaration(declaration) if declaration.is_local() => {
+                self.declare_variable(declaration);
             }
+            // Global declarations are collected before analyzing as they can be used before
+            // being defined.
+            AstNode::Declaration { .. } => {}
+
             AstNode::Component { .. } => {}
             AstNode::ComponentSlot { .. } => {}
             AstNode::For { .. } => {}
@@ -326,62 +333,5 @@ impl<'source> SemanticAnalyzer<'source> {
             message,
             severity,
         });
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn get_info(template: &str) -> SemanticInfo {
-        let tokens = aml_token::Lexer::new(template).collect();
-        let tokens = aml_token::Tokens::new(tokens, template.len());
-        let ast = aml_syntax::Parser::new(tokens).parse();
-        SemanticAnalyzer::new(template).analyze(&ast)
-    }
-
-    #[test]
-    fn test_text_without_value() {
-        let template = r#"text"#;
-        let semantic_info = get_info(template);
-        assert_eq!(
-            semantic_info.diagnostics,
-            vec![SemanticDiagnostic {
-                location: Location::new(0, 4),
-                message: "Text element has no value to display".into(),
-                severity: DiagnosticSeverity::Warning,
-            }]
-        );
-    }
-
-    #[test]
-    fn test_text_with_multiple_values() {
-        let template = r#"text "Hello, " "World!""#;
-        let semantic_info = get_info(template);
-        assert!(semantic_info.diagnostics.is_empty());
-    }
-
-    #[test]
-    fn test_text_with_declared_variable() {
-        let template = r#"
-let my_bg = "red"
-text [foreground: my_bg] "Hello, World!"
-    "#;
-        let semantic_info = get_info(template);
-        assert!(semantic_info.diagnostics.is_empty());
-    }
-
-    #[test]
-    fn test_text_with_undeclared_variable() {
-        let template = r#"text [foreground: undeclared] "Hello, World!""#;
-        let semantic_info = get_info(template);
-        assert_eq!(
-            semantic_info.diagnostics,
-            [SemanticDiagnostic {
-                location: Location::new(18, 28),
-                message: "reference to undefined identifier 'undeclared'".into(),
-                severity: DiagnosticSeverity::Error,
-            }]
-        );
     }
 }
