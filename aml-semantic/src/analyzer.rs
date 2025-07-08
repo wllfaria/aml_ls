@@ -1,9 +1,9 @@
+use std::path::PathBuf;
+
 use aml_core::Location;
 use aml_syntax::ast::{AstVisitor, Attributes, Declaration};
 use aml_syntax::{Ast, AstNode, Expr};
 use aml_token::{Operator, Primitive};
-
-use std::path::PathBuf;
 
 use crate::global_scope::{GlobalScope, GlobalSymbol};
 use crate::symbol_table::{SymbolTable, SymbolType, ValueType};
@@ -329,7 +329,7 @@ impl AstVisitor for GlobalCollector<'_> {
     fn visit_globals(&mut self, decl: &Declaration) {
         assert!(decl.is_global());
 
-        let name = decl.name.text(&self.content).into();
+        let name = decl.name.text(self.content).into();
         let value_type = self.analyzer.analyze_expression(&decl.value);
         let symbol_type = SymbolType::Variable(value_type);
         let location = decl.location;

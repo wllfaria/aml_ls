@@ -1,13 +1,20 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::core::project_manager::Templates;
 use aml_semantic::global_scope::GlobalScope;
 use aml_semantic::{SemanticAnalyzer, SemanticInfo};
 use aml_syntax::{Ast, Parser};
 use aml_token::{Lexer, Tokens};
 use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
+
+use crate::core::project_manager::Templates;
+
+pub fn parse_content(content: &str) -> Ast {
+    let tokens = Lexer::new(content).collect();
+    let tokens = Tokens::new(tokens, content.len());
+    Parser::new(tokens).parse()
+}
 
 #[derive(Debug)]
 pub struct FileInfo {
@@ -38,24 +45,49 @@ impl DocumentManager {
         &self.files
     }
 
+    pub async fn add_or_update_file(
+        &self,
+        global_scope: &mut GlobalScope,
+        uri: Url,
+        ast: Ast,
+        content: String,
+        version: i32,
+    ) {
+        let mut analyzer = SemanticAnalyzer::new(&content, global_scope);
+        let semantic_info = analyzer.analyze(&ast);
+        let mut files = self.files.write().await;
+
+        if let Some(file) = files.get_mut(&uri) {
+            file.ast = ast;
+            file.content = content;
+            file.semantic_info = semantic_info;
+            file.version = version
+        } else {
+            let file_info = FileInfo::new(content, ast, semantic_info, version);
+            files.insert(uri, file_info);
+        }
+    }
+
+    // TODO(wiru): we will already have registered any component referenced by index so we really
+    // should update it here if necessary and not assume we can insert as a new one
+    //
+    // TODO(wiru): in the future, we will watch referenced files for changes in order to update
+    // the internal state properly. The LSP specification states that once we receive a did_open
+    // event, the server should never read directly from the file, but instead use synchronization
+    // events to keep its state up to date. That means we will need to track when files are open
+    // to remove watchers, and when they are closed to add them back
     pub async fn did_open(
         &self,
         params: DidOpenTextDocumentParams,
-        global_scope: &mut GlobalScope,
+        globals: &mut GlobalScope,
         templates: &mut Templates,
     ) {
         let uri = params.text_document.uri.clone();
         let content = params.text_document.text;
         let version = params.text_document.version;
-
-        let ast = self.parse_content(&content);
-        let mut analyzer = SemanticAnalyzer::new(&content, global_scope);
-        analyzer.collect_globals(&ast);
-
-        let (ast, semantic_info) = self.parse_and_analyze_content(&content, global_scope);
-        let file_info = FileInfo::new(content, ast, semantic_info, version);
-
-        self.files.write().await.insert(uri, file_info);
+        let ast = parse_content(&content);
+        self.add_or_update_file(globals, uri, ast, content, version)
+            .await;
     }
 
     pub async fn did_change(
@@ -68,7 +100,6 @@ impl DocumentManager {
         let file = files.get_mut(&uri);
 
         let Some(file) = file else { return };
-
         for change in params.content_changes {
             if let Some(range) = change.range {
                 // this is an incremental update. We apply the change to our stored content.
@@ -81,7 +112,9 @@ impl DocumentManager {
             }
         }
 
-        let (ast, semantic_info) = self.parse_and_analyze_content(&file.content, global_scope);
+        let ast = parse_content(&file.content);
+        let mut analyzer = SemanticAnalyzer::new(&file.content, global_scope);
+        let semantic_info = analyzer.analyze(&ast);
         file.ast = ast;
         file.semantic_info = semantic_info;
         file.version = params.text_document.version;
@@ -89,24 +122,6 @@ impl DocumentManager {
 
     pub async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.files.write().await.remove(&params.text_document.uri);
-    }
-
-    fn parse_content(&self, content: &str) -> Ast {
-        let tokens = Lexer::new(content).collect();
-        let tokens = Tokens::new(tokens, content.len());
-        Parser::new(tokens).parse()
-    }
-
-    fn parse_and_analyze_content(
-        &self,
-        content: &str,
-        global_scope: &mut GlobalScope,
-    ) -> (Ast, SemanticInfo) {
-        let tokens = Lexer::new(content).collect();
-        let tokens = Tokens::new(tokens, content.len());
-        let ast = Parser::new(tokens).parse();
-        let semantic_info = SemanticAnalyzer::new(content, global_scope).analyze(&ast);
-        (ast, semantic_info)
     }
 
     pub fn position_to_byte_offset(&self, content: &str, position: Position) -> usize {

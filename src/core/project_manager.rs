@@ -4,32 +4,30 @@ use std::sync::Arc;
 
 use aml_config::Config;
 use aml_core::workspace::get_root_template;
-use aml_semantic::{
-    SemanticAnalyzer, SymbolType,
-    global_scope::{GlobalScope, GlobalSymbol},
-};
+use aml_semantic::global_scope::{GlobalScope, GlobalSymbol};
+use aml_semantic::{SemanticAnalyzer, SymbolType};
 use aml_syntax::ast::{AstVisitor, Component, Declaration};
 use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
 
-use crate::core::document_manager::DocumentManager;
+use crate::core::document_manager::{DocumentManager, parse_content};
 
 #[derive(Debug, Default)]
 pub struct Templates {
-    pub registered: HashMap<String, PathBuf>,
+    name_to_path_map: HashMap<String, PathBuf>,
 }
 
 impl Templates {
     pub fn register(&mut self, name: String, path: PathBuf) {
-        self.registered.insert(name, path);
+        self.name_to_path_map.insert(name, path);
     }
 
-    pub fn has_template(&self, name: &str) -> bool {
-        self.registered.contains_key(name)
+    pub fn has_template_by_name(&self, name: &str) -> bool {
+        self.name_to_path_map.contains_key(name)
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.registered.is_empty()
+    pub fn name_to_path_map(&self) -> &HashMap<String, PathBuf> {
+        &self.name_to_path_map
     }
 }
 
@@ -69,18 +67,12 @@ impl ProjectManager {
         let config = aml_config::load_config(root_uri_path);
         *self.root_uri.write().await = root_uri.clone();
         *self.config.write().await = config;
+
+        self.initialize_workspace().await;
+        self.analyze_templates_eagerly().await;
     }
 
     pub async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let templates = self.templates.read().await;
-
-        // TODO(wiru): if we have no registered template, we are opening the first file of the project, so we
-        // need to discover the templates on the project in order to register them with correct
-        // hierarchy
-        if templates.is_empty() {
-            self.initialize_workspace().await;
-        }
-
         let mut templates = self.templates.write().await;
         let mut global_scope = self.global_scope.write().await;
         self.document_manager
@@ -116,10 +108,11 @@ impl ProjectManager {
         let Some(Ok(root_dir)) = root_uri.as_ref().map(|uri| uri.to_file_path()) else { return };
         let Some(root_template_path) = get_root_template(&root_dir, &config) else { return };
         let Ok(content) = std::fs::read_to_string(&root_template_path) else { return };
-        let tokens = aml_token::Lexer::new(&content).collect();
-        let tokens = aml_token::Tokens::new(tokens, content.len());
-        let ast = aml_syntax::Parser::new(tokens).parse();
+
+        let ast = parse_content(&content);
         let mut global_scope = self.global_scope.write().await;
+        let mut document_manager = self.document_manager.write().await;
+        templates.register("index".into(), root_template_path.clone());
 
         ast.accept(&mut TemplateCollector {
             config: &config,
@@ -128,7 +121,27 @@ impl ProjectManager {
             templates: &mut templates,
             file_path: &root_template_path,
             global_scope: &mut global_scope,
+            document_manager: &mut document_manager,
         });
+    }
+
+    /// Upon initialization, we analyze the templates we found eagerly to produce workspace
+    /// diagnostics for the entire project rather than only the current file
+    async fn analyze_templates_eagerly(&self) {
+        let templates = self.templates.read().await;
+
+        for path in templates.name_to_path_map().values() {
+            let Ok(content) = std::fs::read_to_string(path) else { return };
+            let Ok(uri) = Url::from_file_path(path) else { return };
+            let ast = parse_content(&content);
+            let mut global_scope = self.global_scope.write().await;
+
+            self.document_manager
+                .write()
+                .await
+                .add_or_update_file(&mut global_scope, uri, ast, content, 0)
+                .await;
+        }
     }
 }
 
@@ -139,6 +152,7 @@ struct TemplateCollector<'src> {
     file_path: &'src PathBuf,
     templates: &'src mut Templates,
     global_scope: &'src mut GlobalScope,
+    document_manager: &'src mut DocumentManager,
 }
 
 impl AstVisitor for TemplateCollector<'_> {
@@ -161,7 +175,7 @@ impl AstVisitor for TemplateCollector<'_> {
         let file_path = self.root_dir.join(&self.config.templates_dir).join(&path);
 
         // TODO(wiru): this has to become a diagnostic of cyclic dependency
-        if self.templates.has_template(&name) {
+        if self.templates.has_template_by_name(name) {
             return;
         }
 
@@ -178,51 +192,64 @@ impl AstVisitor for TemplateCollector<'_> {
             root_dir: self.root_dir,
             templates: self.templates,
             global_scope: self.global_scope,
-        })
+            document_manager: self.document_manager,
+        });
     }
 }
 
 // NOTE(wiru): this test is commented out because i'm using it currently to debug the
 // initialization of the workspace locally.
-//
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[tokio::test]
-//     async fn test_initialize_workspace() {
-//         let mut manager = ProjectManager::new();
-//         let sample_project = format!("{}/code/anathest", std::env::var("HOME").unwrap());
-//         let url = Url::from_file_path(&sample_project).unwrap();
-//         manager.root_uri = Arc::new(RwLock::new(Some(url)));
-//         manager.initialize_workspace().await;
+    #[tokio::test]
+    async fn test_initialize_workspace() {
+        let mut manager = ProjectManager::new();
+        let sample_project = format!("{}/code/anathest", std::env::var("HOME").unwrap());
+        let url = Url::from_file_path(&sample_project).unwrap();
+        let params = InitializeParams {
+            root_uri: Some(url),
+            ..Default::default()
+        };
+        manager.initialize(params).await;
 
-//         let root = PathBuf::from(&sample_project)
-//             .join("templates")
-//             .join("index.aml");
+        // let root = PathBuf::from(&sample_project)
+        //     .join("templates")
+        //     .join("index.aml");
 
-//         let text = std::fs::read_to_string(&root).unwrap();
-//         let url = Url::from_file_path(root).unwrap();
-//         let mut global_scope = manager.global_scope.write().await;
-//         let mut templates = manager.templates.write().await;
-//         let text_document = TextDocumentItem {
-//             uri: url,
-//             language_id: "aml".into(),
-//             version: 1,
-//             text,
-//         };
+        // let text = std::fs::read_to_string(&root).unwrap();
+        // let url = Url::from_file_path(root).unwrap();
+        // let mut global_scope = manager.global_scope.write().await;
+        // let mut templates = manager.templates.write().await;
+        // let text_document = TextDocumentItem {
+        //     uri: url,
+        //     language_id: "aml".into(),
+        //     version: 1,
+        //     text,
+        // };
 
-//         let document_manager = manager.document_manager.write().await;
-//         document_manager
-//             .did_open(
-//                 DidOpenTextDocumentParams { text_document },
-//                 &mut global_scope,
-//                 &mut templates,
-//             )
-//             .await;
+        // document_manager
+        //     .did_open(
+        //         DidOpenTextDocumentParams { text_document },
+        //         &mut global_scope,
+        //         &mut templates,
+        //     )
+        //     .await;
 
-//         println!("{:#?}", document_manager.files());
+        let document_manager = manager.document_manager.write().await;
+        println!("{:#?}", manager.templates.read().await);
+        println!(
+            "{:#?}",
+            document_manager
+                .files()
+                .read()
+                .await
+                .keys()
+                .map(|k| k.path())
+                .collect::<Vec<_>>()
+        );
 
-//         panic!();
-//     }
-// }
+        panic!();
+    }
+}

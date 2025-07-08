@@ -204,10 +204,10 @@ impl Tokens {
     }
 
     pub fn peek(&self) -> Token {
-        self.inner
-            .get(self.index)
-            .copied()
-            .unwrap_or(Token(TokenKind::Eof, (self.eof - 1..self.eof).into()))
+        self.inner.get(self.index).copied().unwrap_or(Token(
+            TokenKind::Eof,
+            (self.eof.saturating_sub(1)..self.eof).into(),
+        ))
     }
 
     pub fn consume_indent(&mut self) {

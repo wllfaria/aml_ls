@@ -38,9 +38,9 @@ impl Ast {
     where
         V: AstVisitor,
     {
-        self.nodes
-            .iter()
-            .for_each(|node| traverse_tree(node, visitor));
+        for node in self.nodes.iter() {
+            traverse_tree(node, visitor);
+        }
     }
 }
 
