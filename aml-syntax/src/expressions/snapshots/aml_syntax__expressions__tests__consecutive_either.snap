@@ -1,10 +1,8 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 217
 expression: parse(input)
 ---
 Binary:
-  original: a ? ?
   lhs:
     Ident:
       value: a
@@ -13,13 +11,14 @@ Binary:
         end_byte: 1
   rhs:
     Error:
-      original: "?"
+      token:
+        Operator: Either
       location:
         start_byte: 4
         end_byte: 5
-      token:
-        Operator: Either
+      original: "?"
   op: Either
   location:
     start_byte: 0
     end_byte: 5
+  original: a ? ?

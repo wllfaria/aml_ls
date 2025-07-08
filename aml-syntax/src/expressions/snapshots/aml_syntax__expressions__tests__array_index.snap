@@ -1,13 +1,10 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 58
 expression: parse(input)
 ---
 ArrayIndex:
-  original: "array[0][1]"
   lhs:
     ArrayIndex:
-      original: "array[0]"
       lhs:
         Ident:
           value: array
@@ -16,23 +13,25 @@ ArrayIndex:
             end_byte: 5
       index:
         Primitive:
-          original: "0"
           value:
             Int: 0
           location:
             start_byte: 6
             end_byte: 7
+          original: "0"
       location:
         start_byte: 0
         end_byte: 8
+      original: "array[0]"
   index:
     Primitive:
-      original: "1"
       value:
         Int: 1
       location:
         start_byte: 9
         end_byte: 10
+      original: "1"
   location:
     start_byte: 0
     end_byte: 11
+  original: "array[0][1]"

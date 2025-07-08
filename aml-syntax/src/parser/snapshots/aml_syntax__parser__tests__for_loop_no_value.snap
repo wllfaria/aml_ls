@@ -1,6 +1,5 @@
 ---
 source: aml-syntax/src/parser/tests.rs
-assertion_line: 173
 expression: ast
 ---
 nodes:
@@ -13,11 +12,11 @@ nodes:
             end_byte: 9
       value:
         Error:
-          original: "\n"
+          token: Newline
           location:
             start_byte: 12
             end_byte: 13
-          token: Newline
+          original: "\n"
       children:
         - Text:
             values:

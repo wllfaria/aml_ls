@@ -1,58 +1,57 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 88
 expression: parse(input)
 ---
 List:
-  original: "[1, [2, 3, [4, 5]]]"
   items:
     - Primitive:
-        original: "1"
         value:
           Int: 1
         location:
           start_byte: 1
           end_byte: 2
+        original: "1"
     - List:
-        original: "[2, 3, [4, 5]]"
         items:
           - Primitive:
-              original: "2"
               value:
                 Int: 2
               location:
                 start_byte: 5
                 end_byte: 6
+              original: "2"
           - Primitive:
-              original: "3"
               value:
                 Int: 3
               location:
                 start_byte: 8
                 end_byte: 9
+              original: "3"
           - List:
-              original: "[4, 5]"
               items:
                 - Primitive:
-                    original: "4"
                     value:
                       Int: 4
                     location:
                       start_byte: 12
                       end_byte: 13
+                    original: "4"
                 - Primitive:
-                    original: "5"
                     value:
                       Int: 5
                     location:
                       start_byte: 15
                       end_byte: 16
+                    original: "5"
               location:
                 start_byte: 11
                 end_byte: 17
+              original: "[4, 5]"
         location:
           start_byte: 4
           end_byte: 18
+        original: "[2, 3, [4, 5]]"
   location:
     start_byte: 0
     end_byte: 19
+  original: "[1, [2, 3, [4, 5]]]"

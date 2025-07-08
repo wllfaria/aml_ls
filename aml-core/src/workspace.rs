@@ -1,4 +1,19 @@
+use aml_config::Config;
 use std::path::{Path, PathBuf};
+
+pub fn get_root_template<P: AsRef<Path>>(root_dir: P, config: &Config) -> Option<PathBuf> {
+    let root_template = root_dir
+        .as_ref()
+        .join(&config.templates_dir)
+        .join(&config.root_template);
+
+    if !root_template.exists() {
+        // TOOD(wiru) figure out what to do if the main template doesn't exist
+        return None;
+    }
+
+    Some(root_template)
+}
 
 pub fn search_for_templates<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
     let mut templates = vec![];

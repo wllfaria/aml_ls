@@ -1,10 +1,8 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 124
 expression: parse(input)
 ---
 Call:
-  original: "func(1, 2"
   fun:
     Ident:
       value: func
@@ -13,25 +11,26 @@ Call:
         end_byte: 4
   args:
     - Primitive:
-        original: "1"
         value:
           Int: 1
         location:
           start_byte: 5
           end_byte: 6
+        original: "1"
     - Primitive:
-        original: "2"
         value:
           Int: 2
         location:
           start_byte: 8
           end_byte: 9
-    - Error:
         original: "2"
+    - Error:
+        token: Eof
         location:
           start_byte: 8
           end_byte: 9
-        token: Eof
+        original: "2"
   location:
     start_byte: 0
     end_byte: 9
+  original: "func(1, 2"

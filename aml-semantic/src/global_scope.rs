@@ -26,8 +26,16 @@ impl GlobalScope {
     }
 
     pub fn declare_global(&mut self, symbol: GlobalSymbol) {
+        if self.globals.contains_key(&symbol.name) {
+            return;
+        };
+
         let name = symbol.name.clone();
         self.globals.insert(name, symbol);
+    }
+
+    pub fn lookup_symbol(&self, name: &str) -> Option<&GlobalSymbol> {
+        self.globals.get(name)
     }
 
     // pub async fn get_global_location(&self, name: &str) -> Option<PathBuf> {

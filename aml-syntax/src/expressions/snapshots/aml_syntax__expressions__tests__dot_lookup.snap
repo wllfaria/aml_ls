@@ -1,13 +1,10 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 70
 expression: parse(input)
 ---
 Binary:
-  original: a.b.c
   lhs:
     Binary:
-      original: a.b
       lhs:
         Ident:
           value: a
@@ -24,6 +21,7 @@ Binary:
       location:
         start_byte: 0
         end_byte: 3
+      original: a.b
   rhs:
     Ident:
       value: c
@@ -34,3 +32,4 @@ Binary:
   location:
     start_byte: 0
     end_byte: 5
+  original: a.b.c

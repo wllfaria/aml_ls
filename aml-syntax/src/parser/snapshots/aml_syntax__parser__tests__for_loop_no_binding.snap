@@ -1,6 +1,5 @@
 ---
 source: aml-syntax/src/parser/tests.rs
-assertion_line: 183
 expression: ast
 ---
 nodes:
@@ -11,34 +10,35 @@ nodes:
           location:
             start_byte: 6
             end_byte: 8
+          original: in
       value:
         List:
-          original: "[1,2,3]"
           items:
             - Primitive:
-                original: "1"
                 value:
                   Int: 1
                 location:
                   start_byte: 10
                   end_byte: 11
+                original: "1"
             - Primitive:
-                original: "2"
                 value:
                   Int: 2
                 location:
                   start_byte: 12
                   end_byte: 13
+                original: "2"
             - Primitive:
-                original: "3"
                 value:
                   Int: 3
                 location:
                   start_byte: 14
                   end_byte: 15
+                original: "3"
           location:
             start_byte: 9
             end_byte: 16
+          original: "[1,2,3]"
       children:
         - Text:
             values:

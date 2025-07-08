@@ -150,17 +150,13 @@ impl<'src> SemanticAnalyzer<'src> {
                 AstNode::Identifier { .. } => {
                     let name = self.get_node_text(value);
 
-                    // Check local symbol table first
                     if self.symbol_table.lookup_symbol(name).is_some() {
                         continue;
                     }
 
-                    // Then check global context
-                    // if let Some(global_context) = &self.global_scope {
-                    //     if global_context.is_global_defined(name) {
-                    //         continue;
-                    //     }
-                    // }
+                    if self.global_scope.lookup_symbol(name).is_some() {
+                        continue;
+                    }
 
                     self.add_diagnostic(
                         location,
@@ -178,7 +174,7 @@ impl<'src> SemanticAnalyzer<'src> {
         }
     }
 
-    fn analyze_expression(&mut self, expr: &Expr) -> ValueType {
+    pub fn analyze_expression(&mut self, expr: &Expr) -> ValueType {
         match expr {
             Expr::String(_) => ValueType::String,
             Expr::Primitive(primitive) => match primitive.value {
@@ -247,7 +243,6 @@ impl<'src> SemanticAnalyzer<'src> {
     fn resolve_identifier_type(&mut self, location: Location) -> ValueType {
         let name = &self.content[location.to_range()];
 
-        // First check local symbol table
         if let Some(symbol) = self.symbol_table.lookup_symbol(name) {
             return match &symbol.symbol_type {
                 SymbolType::Variable(value_type) => value_type.clone(),
@@ -255,12 +250,12 @@ impl<'src> SemanticAnalyzer<'src> {
             };
         }
 
-        // Then check global context
-        // if let Some(global_context) = &self.global_scope {
-        //     if let Some(value_type) = global_context.get_global_type(name) {
-        //         return value_type;
-        //     }
-        // }
+        if let Some(symbol) = self.global_scope.lookup_symbol(name) {
+            return match &symbol.symbol_type {
+                SymbolType::Variable(value_type) => value_type.clone(),
+                SymbolType::Element => ValueType::Unknown,
+            };
+        }
 
         self.add_diagnostic(
             location,

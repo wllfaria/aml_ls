@@ -1,32 +1,28 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 142
 expression: parse(input)
 ---
 List:
-  original: "[1 + 12 * a b c - 13]"
   items:
     - Binary:
-        original: 1 + 12 * a
         lhs:
           Primitive:
-            original: "1"
             value:
               Int: 1
             location:
               start_byte: 1
               end_byte: 2
+            original: "1"
         rhs:
           Binary:
-            original: 12 * a
             lhs:
               Primitive:
-                original: "12"
                 value:
                   Int: 12
                 location:
                   start_byte: 5
                   end_byte: 7
+                original: "12"
             rhs:
               Ident:
                 value: a
@@ -37,17 +33,18 @@ List:
             location:
               start_byte: 5
               end_byte: 11
+            original: 12 * a
         op: Plus
         location:
           start_byte: 1
           end_byte: 11
+        original: 1 + 12 * a
     - Ident:
         value: b
         location:
           start_byte: 12
           end_byte: 13
     - Binary:
-        original: c - 13
         lhs:
           Ident:
             value: c
@@ -56,16 +53,18 @@ List:
               end_byte: 15
         rhs:
           Primitive:
-            original: "13"
             value:
               Int: 13
             location:
               start_byte: 18
               end_byte: 20
+            original: "13"
         op: Minus
         location:
           start_byte: 14
           end_byte: 20
+        original: c - 13
   location:
     start_byte: 0
     end_byte: 21
+  original: "[1 + 12 * a b c - 13]"

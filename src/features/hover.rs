@@ -264,27 +264,27 @@ fn get_expr_location_at_offset(expr: &Expr, byte_offset: usize) -> Option<aml_co
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use aml_syntax::Parser;
-    use aml_token::{Lexer, Tokens};
+// #[cfg(test)]
+// mod tests {
+//     use aml_syntax::Parser;
+//     use aml_token::{Lexer, Tokens};
 
-    use super::*;
+//     use super::*;
 
-    fn get_ast(template: &str) -> Ast {
-        let tokens = Lexer::new(template).collect();
-        let tokens = Tokens::new(tokens, template.len());
-        let parser = Parser::new(tokens);
-        parser.parse()
-    }
+//     fn get_ast(template: &str) -> Ast {
+//         let tokens = Lexer::new(template).collect();
+//         let tokens = Tokens::new(tokens, template.len());
+//         let parser = Parser::new(tokens);
+//         parser.parse()
+//     }
 
-    #[test]
-    fn test_find_attribute_in_node() {
-        let template = r#"text [foreground: #ff0000] "Hello""#;
-        let provider = HoverProvider::new();
-        let ast = get_ast(template);
-        let node = provider.find_node_at_position(&ast, "te".len());
-        println!("{node:?}");
-        panic!();
-    }
-}
+//     #[test]
+//     fn test_find_attribute_in_node() {
+//         let template = r#"text [foreground: #ff0000] "Hello""#;
+//         let provider = HoverProvider::new();
+//         let ast = get_ast(template);
+//         let node = provider.find_node_at_position(&ast, "te".len());
+//         println!("{node:?}");
+//         panic!();
+//     }
+// }

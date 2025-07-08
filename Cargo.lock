@@ -29,6 +29,7 @@ dependencies = [
 name = "aml-core"
 version = "0.1.0"
 dependencies = [
+ "aml-config",
  "serde",
 ]
 

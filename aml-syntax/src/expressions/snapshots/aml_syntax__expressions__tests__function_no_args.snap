@@ -1,10 +1,8 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 52
 expression: parse(input)
 ---
 Call:
-  original: f()
   fun:
     Ident:
       value: f
@@ -15,3 +13,4 @@ Call:
   location:
     start_byte: 0
     end_byte: 3
+  original: f()

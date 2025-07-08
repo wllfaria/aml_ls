@@ -1,6 +1,5 @@
 ---
 source: aml-syntax/src/parser/tests.rs
-assertion_line: 136
 expression: ast
 ---
 nodes:
@@ -24,7 +23,6 @@ nodes:
                   end_byte: 17
             value:
               Primitive:
-                original: "#ff0000"
                 value:
                   Hex:
                     r: 255
@@ -33,6 +31,7 @@ nodes:
                 location:
                   start_byte: 19
                   end_byte: 26
+                original: "#ff0000"
             location:
               start_byte: 7
               end_byte: 26

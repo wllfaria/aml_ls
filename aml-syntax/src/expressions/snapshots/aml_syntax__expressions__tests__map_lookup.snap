@@ -1,10 +1,8 @@
 ---
 source: aml-syntax/src/expressions/tests.rs
-assertion_line: 64
 expression: parse(input)
 ---
 ArrayIndex:
-  original: "map['key']"
   lhs:
     Ident:
       value: map
@@ -20,3 +18,4 @@ ArrayIndex:
   location:
     start_byte: 0
     end_byte: 10
+  original: "map['key']"
