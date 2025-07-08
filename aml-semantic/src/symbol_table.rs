@@ -11,13 +11,13 @@ pub struct Symbol {
     pub scope_id: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SymbolType {
-    Variable { value_type: ValueType },
+    Variable(ValueType),
     Element,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Hash)]
 pub enum ValueType {
     String,
     Number,

@@ -4,21 +4,23 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use crate::core::document_manager::DocumentManager;
+use crate::core::project_manager::ProjectManager;
 use crate::features::diagnostics::DiagnosticProvider;
 use crate::features::hover::{HoverContext, HoverProvider};
 
 #[derive(Debug)]
 pub struct Backend {
     client: Client,
-    document_manager: DocumentManager,
+    project_manager: ProjectManager,
     hover_provider: HoverProvider,
     diagnostic_provider: DiagnosticProvider,
 }
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        self.project_manager.initialize(params).await;
+
         Ok(InitializeResult {
             server_info: None,
             capabilities: capabilities::server_capabilities(),
@@ -33,26 +35,29 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let uri = params.text_document.uri.clone();
-        self.document_manager.did_open(params).await;
+        self.project_manager.did_open(params).await;
         self.publish_diagnostics(&uri).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri.clone();
-        self.document_manager.did_change(params).await;
+        self.project_manager.did_change(params).await;
         self.publish_diagnostics(&uri).await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = params.text_document.uri.clone();
-        self.document_manager.did_close(params).await;
+        self.project_manager.did_close(params).await;
         self.client.publish_diagnostics(uri, Vec::new(), None).await;
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let dm = self.project_manager.get_document_manager().await;
+        let dm_guard = dm.read().await;
+
         self.hover_provider
             .hover(HoverContext {
-                document_manager: &self.document_manager,
+                document_manager: &dm_guard,
                 params,
             })
             .await
@@ -61,9 +66,12 @@ impl LanguageServer for Backend {
 
 impl Backend {
     async fn publish_diagnostics(&self, uri: &Url) {
+        let dm = self.project_manager.get_document_manager().await;
+        let dm_guard = dm.read().await;
+
         let diagnostics = self
             .diagnostic_provider
-            .get_diagnostics(&self.document_manager, uri)
+            .get_diagnostics(&dm_guard, uri)
             .await;
         self.client
             .publish_diagnostics(uri.clone(), diagnostics, None)
@@ -77,7 +85,7 @@ pub async fn start() {
 
     let (service, socket) = LspService::new(|client| Backend {
         client,
-        document_manager: DocumentManager::new(),
+        project_manager: ProjectManager::new(),
         hover_provider: HoverProvider::new(),
         diagnostic_provider: DiagnosticProvider::new(),
     });

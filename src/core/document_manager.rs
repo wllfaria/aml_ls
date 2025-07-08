@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::core::project_manager::Templates;
+use aml_semantic::global_scope::GlobalScope;
 use aml_semantic::{SemanticAnalyzer, SemanticInfo};
 use aml_syntax::{Ast, Parser};
 use aml_token::{Lexer, Tokens};
@@ -26,34 +28,41 @@ impl FileInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DocumentManager {
     files: Arc<RwLock<HashMap<Url, FileInfo>>>,
 }
 
 impl DocumentManager {
-    pub fn new() -> Self {
-        Self {
-            files: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
     pub fn files(&self) -> &Arc<RwLock<HashMap<Url, FileInfo>>> {
         &self.files
     }
 
-    pub async fn did_open(&self, params: DidOpenTextDocumentParams) {
+    pub async fn did_open(
+        &self,
+        params: DidOpenTextDocumentParams,
+        global_scope: &mut GlobalScope,
+        templates: &mut Templates,
+    ) {
         let uri = params.text_document.uri.clone();
         let content = params.text_document.text;
         let version = params.text_document.version;
 
-        let (ast, semantic_info) = self.parse_and_analyze_content(&content);
+        let ast = self.parse_content(&content);
+        let mut analyzer = SemanticAnalyzer::new(&content, global_scope);
+        analyzer.collect_globals(&ast);
+
+        let (ast, semantic_info) = self.parse_and_analyze_content(&content, global_scope);
         let file_info = FileInfo::new(content, ast, semantic_info, version);
 
         self.files.write().await.insert(uri, file_info);
     }
 
-    pub async fn did_change(&self, params: DidChangeTextDocumentParams) {
+    pub async fn did_change(
+        &self,
+        params: DidChangeTextDocumentParams,
+        global_scope: &mut GlobalScope,
+    ) {
         let uri = params.text_document.uri;
         let mut files = self.files.write().await;
         let file = files.get_mut(&uri);
@@ -72,7 +81,7 @@ impl DocumentManager {
             }
         }
 
-        let (ast, semantic_info) = self.parse_and_analyze_content(&file.content);
+        let (ast, semantic_info) = self.parse_and_analyze_content(&file.content, global_scope);
         file.ast = ast;
         file.semantic_info = semantic_info;
         file.version = params.text_document.version;
@@ -82,15 +91,21 @@ impl DocumentManager {
         self.files.write().await.remove(&params.text_document.uri);
     }
 
-    fn parse_and_analyze_content(&self, content: &str) -> (Ast, SemanticInfo) {
+    fn parse_content(&self, content: &str) -> Ast {
         let tokens = Lexer::new(content).collect();
         let tokens = Tokens::new(tokens, content.len());
-        let parser = Parser::new(tokens);
-        let ast = parser.parse();
+        Parser::new(tokens).parse()
+    }
 
-        let mut analyzer = SemanticAnalyzer::new(content);
-        let semantic_info = analyzer.analyze(&ast);
-
+    fn parse_and_analyze_content(
+        &self,
+        content: &str,
+        global_scope: &mut GlobalScope,
+    ) -> (Ast, SemanticInfo) {
+        let tokens = Lexer::new(content).collect();
+        let tokens = Tokens::new(tokens, content.len());
+        let ast = Parser::new(tokens).parse();
+        let semantic_info = SemanticAnalyzer::new(content, global_scope).analyze(&ast);
         (ast, semantic_info)
     }
 

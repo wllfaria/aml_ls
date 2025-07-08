@@ -1,4 +1,5 @@
 pub mod analyzer;
+pub mod global_scope;
 pub mod scope;
 pub mod symbol_table;
 

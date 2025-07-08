@@ -1,10 +1,11 @@
 use aml_core::Location;
-use aml_syntax::ast::{
-    ArrayIndex, Attributes, Binary, Call, Declaration, List, Map, PrimitiveExpr, Unary,
-};
+use aml_syntax::ast::{AstVisitor, Attributes, Declaration};
 use aml_syntax::{Ast, AstNode, Expr};
 use aml_token::{Operator, Primitive};
 
+use std::path::PathBuf;
+
+use crate::global_scope::{GlobalScope, GlobalSymbol};
 use crate::symbol_table::{SymbolTable, SymbolType, ValueType};
 
 #[derive(Debug)]
@@ -27,25 +28,26 @@ pub enum DiagnosticSeverity {
     Info,
 }
 
-#[derive(Debug, Default)]
-pub struct SemanticAnalyzer<'source> {
+#[derive(Debug)]
+pub struct SemanticAnalyzer<'src> {
     symbol_table: SymbolTable,
     diagnostics: Vec<SemanticDiagnostic>,
-    content: &'source str,
+    content: &'src str,
+    global_scope: &'src mut GlobalScope,
 }
 
-impl<'source> SemanticAnalyzer<'source> {
-    pub fn new(content: &'source str) -> Self {
-        Self {
+impl<'src> SemanticAnalyzer<'src> {
+    pub fn new(content: &'src str, global_scope: &'src mut GlobalScope) -> SemanticAnalyzer<'src> {
+        SemanticAnalyzer {
             symbol_table: SymbolTable::new(),
             diagnostics: Vec::new(),
             content,
+            global_scope,
         }
     }
 
     pub fn analyze(&mut self, ast: &Ast) -> SemanticInfo {
         for node in ast.nodes.iter() {
-            self.collect_globals(node);
             self.analyze_node(node);
         }
 
@@ -55,31 +57,18 @@ impl<'source> SemanticAnalyzer<'source> {
         }
     }
 
-    fn collect_globals(&mut self, node: &AstNode) {
-        match node {
-            AstNode::Text(text) => text
-                .children
-                .iter()
-                .for_each(|child| self.collect_globals(child)),
-            AstNode::Declaration(declaration) if declaration.is_global() => {
-                self.declare_variable(declaration)
-            }
-            AstNode::Container(container) => container
-                .children
-                .iter()
-                .for_each(|child| self.collect_globals(child)),
-            AstNode::For(for_node) => for_node
-                .children
-                .iter()
-                .for_each(|child| self.collect_globals(child)),
-            _ => {}
-        }
+    pub fn collect_globals(&'src mut self, ast: &Ast) {
+        ast.accept(&mut GlobalCollector {
+            file_path: PathBuf::new(),
+            content: self.content,
+            analyzer: self,
+        });
     }
 
     fn declare_variable(&mut self, declaration: &Declaration) {
         let name = self.get_node_text(&declaration.name);
         let value_type = self.analyze_expression(&declaration.value);
-        let symbol_type = SymbolType::Variable { value_type };
+        let symbol_type = SymbolType::Variable(value_type);
 
         self.symbol_table
             .declare_symbol(name.into(), declaration.location, symbol_type);
@@ -160,14 +149,25 @@ impl<'source> SemanticAnalyzer<'source> {
                 AstNode::Primitive { .. } => {}
                 AstNode::Identifier { .. } => {
                     let name = self.get_node_text(value);
-                    let Some(_) = self.symbol_table.lookup_symbol(name) else {
-                        self.add_diagnostic(
-                            location,
-                            format!("reference to undefined identifier '{name}'"),
-                            DiagnosticSeverity::Error,
-                        );
-                        return;
-                    };
+
+                    // Check local symbol table first
+                    if self.symbol_table.lookup_symbol(name).is_some() {
+                        continue;
+                    }
+
+                    // Then check global context
+                    // if let Some(global_context) = &self.global_scope {
+                    //     if global_context.is_global_defined(name) {
+                    //         continue;
+                    //     }
+                    // }
+
+                    self.add_diagnostic(
+                        location,
+                        format!("reference to undefined identifier '{name}'"),
+                        DiagnosticSeverity::Error,
+                    );
+                    return;
                 }
                 _ => self.add_diagnostic(
                     location,
@@ -181,105 +181,93 @@ impl<'source> SemanticAnalyzer<'source> {
     fn analyze_expression(&mut self, expr: &Expr) -> ValueType {
         match expr {
             Expr::String(_) => ValueType::String,
-            Expr::Primitive(primitive) => self.infer_primitive_type(primitive),
+            Expr::Primitive(primitive) => match primitive.value {
+                Primitive::Bool(_) => ValueType::Boolean,
+                Primitive::Int(_) => ValueType::Number,
+                Primitive::Float(_) => ValueType::Number,
+                Primitive::Hex(_) => ValueType::Hex,
+            },
             Expr::Ident(location) => self.resolve_identifier_type(*location),
-            Expr::List(list) => self.infer_collection_element_type(list),
-            Expr::Map(map) => self.infer_map_type(map),
-            Expr::Binary(binary) => self.infer_binary_expression_type(binary),
-            Expr::Unary(unary) => self.infer_unary_expression_type(unary),
-            Expr::Call(call) => self.analyze_function_call(call),
-            Expr::ArrayIndex(array_index) => self.analyze_array_access(array_index),
-            Expr::Error(_) => todo!(),
-        }
-    }
-
-    fn infer_primitive_type(&self, primitive: &PrimitiveExpr) -> ValueType {
-        match primitive.value {
-            Primitive::Bool(_) => ValueType::Boolean,
-            Primitive::Int(_) => ValueType::Number,
-            Primitive::Float(_) => ValueType::Number,
-            Primitive::Hex(_) => ValueType::Hex,
+            Expr::List(list) => list
+                .items
+                .iter()
+                .map(|expr| self.analyze_expression(expr))
+                .find(|t| !matches!(t, ValueType::Unknown))
+                .unwrap_or(ValueType::Unknown),
+            Expr::Map(map) => {
+                let (key_type, value_type) = map
+                    .items
+                    .iter()
+                    .map(|(key, val)| (self.analyze_expression(key), self.analyze_expression(val)))
+                    .fold(
+                        (ValueType::Unknown, ValueType::Unknown),
+                        |(acc_k, acc_v), (k, v)| {
+                            (
+                                if matches!(acc_k, ValueType::Unknown) { k } else { acc_k },
+                                if matches!(acc_v, ValueType::Unknown) { v } else { acc_v },
+                            )
+                        },
+                    );
+                ValueType::Map(Box::new(key_type), Box::new(value_type))
+            }
+            Expr::Binary(binary) => {
+                let lhs_type = self.analyze_expression(&binary.lhs);
+                let rhs_type = self.analyze_expression(&binary.rhs);
+                let expected_type = self.get_operator_result_type(binary.op);
+                self.validate_operand_types(&lhs_type, &rhs_type, &expected_type, binary.op);
+                expected_type
+            }
+            Expr::Unary(unary) => {
+                let expr_type = self.analyze_expression(&unary.expr);
+                match unary.op {
+                    Operator::Not => ValueType::Boolean,
+                    Operator::Minus => ValueType::Number,
+                    _ => expr_type,
+                }
+            }
+            Expr::Call(call) => {
+                self.analyze_expression(&call.fun);
+                for arg in call.args.iter() {
+                    self.analyze_expression(arg);
+                }
+                ValueType::Unknown
+            }
+            Expr::ArrayIndex(array_index) => {
+                let lhs_type = self.analyze_expression(&array_index.lhs);
+                self.analyze_expression(&array_index.index);
+                match lhs_type {
+                    ValueType::List(element_type) => *element_type,
+                    _ => ValueType::Unknown,
+                }
+            }
+            Expr::Error(_) => ValueType::Unknown,
         }
     }
 
     fn resolve_identifier_type(&mut self, location: Location) -> ValueType {
         let name = &self.content[location.to_range()];
 
-        let Some(symbol) = self.symbol_table.lookup_symbol(name) else {
-            self.add_diagnostic(
-                location,
-                format!("reference to undefined identifier '{name}'"),
-                DiagnosticSeverity::Error,
-            );
-            return ValueType::Unknown;
-        };
-
-        match &symbol.symbol_type {
-            SymbolType::Variable { value_type } => value_type.clone(),
-            SymbolType::Element => ValueType::Unknown,
+        // First check local symbol table
+        if let Some(symbol) = self.symbol_table.lookup_symbol(name) {
+            return match &symbol.symbol_type {
+                SymbolType::Variable(value_type) => value_type.clone(),
+                SymbolType::Element => ValueType::Unknown,
+            };
         }
-    }
 
-    fn infer_collection_element_type(&mut self, list: &List) -> ValueType {
-        list.items
-            .iter()
-            .map(|expr| self.analyze_expression(expr))
-            .find(|t| !matches!(t, ValueType::Unknown))
-            .unwrap_or(ValueType::Unknown)
-    }
+        // Then check global context
+        // if let Some(global_context) = &self.global_scope {
+        //     if let Some(value_type) = global_context.get_global_type(name) {
+        //         return value_type;
+        //     }
+        // }
 
-    fn infer_map_type(&mut self, map: &Map) -> ValueType {
-        let (key_type, value_type) = map
-            .items
-            .iter()
-            .map(|(key, val)| (self.analyze_expression(key), self.analyze_expression(val)))
-            .fold(
-                (ValueType::Unknown, ValueType::Unknown),
-                |(acc_k, acc_v), (k, v)| {
-                    (
-                        if matches!(acc_k, ValueType::Unknown) { k } else { acc_k },
-                        if matches!(acc_v, ValueType::Unknown) { v } else { acc_v },
-                    )
-                },
-            );
-
-        ValueType::Map(Box::new(key_type), Box::new(value_type))
-    }
-
-    fn infer_binary_expression_type(&mut self, binary: &Binary) -> ValueType {
-        let lhs_type = self.analyze_expression(&binary.lhs);
-        let rhs_type = self.analyze_expression(&binary.rhs);
-        let expected_type = self.get_operator_result_type(binary.op);
-
-        self.validate_operand_types(&lhs_type, &rhs_type, &expected_type, binary.op);
-        expected_type
-    }
-
-    fn infer_unary_expression_type(&mut self, unary: &Unary) -> ValueType {
-        let expr_type = self.analyze_expression(&unary.expr);
-        match unary.op {
-            Operator::Not => ValueType::Boolean,
-            Operator::Minus => ValueType::Number,
-            _ => expr_type,
-        }
-    }
-
-    fn analyze_function_call(&mut self, call: &Call) -> ValueType {
-        self.analyze_expression(&call.fun);
-        for arg in call.args.iter() {
-            self.analyze_expression(arg);
-        }
+        self.add_diagnostic(
+            location,
+            format!("reference to undefined identifier '{name}'"),
+            DiagnosticSeverity::Error,
+        );
         ValueType::Unknown
-    }
-
-    fn analyze_array_access(&mut self, array_index: &ArrayIndex) -> ValueType {
-        let lhs_type = self.analyze_expression(&array_index.lhs);
-        self.analyze_expression(&array_index.index);
-
-        match lhs_type {
-            ValueType::List(element_type) => *element_type,
-            _ => ValueType::Unknown,
-        }
     }
 
     fn get_operator_result_type(&self, op: Operator) -> ValueType {
@@ -314,7 +302,7 @@ impl<'source> SemanticAnalyzer<'source> {
         }
     }
 
-    fn get_node_text(&self, node: &AstNode) -> &'source str {
+    fn get_node_text(&self, node: &AstNode) -> &'src str {
         match node {
             AstNode::Identifier(location) => &self.content[location.to_range()],
             AstNode::String(location) => &self.content[location.to_range()],
@@ -332,6 +320,30 @@ impl<'source> SemanticAnalyzer<'source> {
             location,
             message,
             severity,
+        });
+    }
+}
+
+struct GlobalCollector<'src> {
+    file_path: PathBuf,
+    content: &'src str,
+    analyzer: &'src mut SemanticAnalyzer<'src>,
+}
+
+impl AstVisitor for GlobalCollector<'_> {
+    fn visit_globals(&mut self, decl: &Declaration) {
+        assert!(decl.is_global());
+
+        let name = decl.name.text(&self.content).into();
+        let value_type = self.analyzer.analyze_expression(&decl.value);
+        let symbol_type = SymbolType::Variable(value_type);
+        let location = decl.location;
+
+        self.analyzer.global_scope.declare_global(GlobalSymbol {
+            name,
+            location,
+            symbol_type,
+            definition: self.file_path.clone(),
         });
     }
 }

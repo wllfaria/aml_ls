@@ -111,7 +111,7 @@ impl HoverProvider {
     ) -> String {
         if let Some(symbol) = semantic_info.symbol_table.find_symbol_at_position(position) {
             match &symbol.symbol_type {
-                SymbolType::Variable { value_type } => {
+                SymbolType::Variable(value_type) => {
                     format!("Variable: {} (type: {:?})", symbol.name, value_type)
                 }
                 SymbolType::Element => format!("Element: {}", symbol.name),

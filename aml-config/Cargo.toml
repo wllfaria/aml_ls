@@ -1,0 +1,8 @@
+[package]
+name = "aml-config"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+toml = "0.8.23"

@@ -10,6 +10,22 @@ pub struct Scope {
     pub parent: Option<usize>,
 }
 
+pub trait AstVisitor {
+    fn visit_globals(&mut self, _decl: &Declaration) {}
+    fn visit_locals(&mut self, _decl: &Declaration) {}
+    fn visit_string(&mut self, _location: Location) {}
+    fn visit_component(&mut self, _component: &Component) {}
+    fn visit_container(&mut self, _container: &ContainerNode) {}
+    fn visit_text(&mut self, _text: &Text) {}
+    fn visit_for(&mut self, _for_loop: &For) {}
+    fn visit_component_slot(&mut self, _slot: &ComponentSlot) {}
+    fn visit_primitive(&mut self, _prim: &PrimitiveNode) {}
+    fn visit_span(&mut self, _span: &Span) {}
+    fn visit_identifier(&mut self, _ident: &Location) {}
+    fn visit_attribute(&mut self, _attr: &Attribute) {}
+    fn visit_error(&mut self, _err: &ErrorNode) {}
+}
+
 #[derive(Debug, Default)]
 pub struct Ast {
     pub nodes: Vec<AstNode>,
@@ -17,6 +33,54 @@ pub struct Ast {
     pub scopes: Vec<Scope>,
 }
 
+impl Ast {
+    pub fn accept<V>(&self, visitor: &mut V)
+    where
+        V: AstVisitor,
+    {
+        self.nodes
+            .iter()
+            .for_each(|node| traverse_tree(node, visitor));
+    }
+}
+
+fn traverse_tree<V>(node: &AstNode, visitor: &mut V)
+where
+    V: AstVisitor,
+{
+    match node {
+        AstNode::String(location) => visitor.visit_string(*location),
+        AstNode::Component(component) => visitor.visit_component(component),
+        AstNode::Declaration(decl) if decl.is_global() => visitor.visit_globals(decl),
+        AstNode::Declaration(decl) => visitor.visit_locals(decl),
+
+        AstNode::Container(container) => {
+            visitor.visit_container(container); // if you later define this
+            for child in &container.children {
+                traverse_tree(child, visitor);
+            }
+        }
+        AstNode::Text(text) => {
+            visitor.visit_text(text); // define if needed
+            for value in &text.values {
+                traverse_tree(value, visitor);
+            }
+        }
+        AstNode::For(for_loop) => {
+            visitor.visit_for(for_loop); // define if needed
+            for child in &for_loop.children {
+                traverse_tree(child, visitor);
+            }
+        }
+
+        AstNode::ComponentSlot(slot) => visitor.visit_component_slot(slot),
+        AstNode::Primitive(primitive) => visitor.visit_primitive(primitive),
+        AstNode::Span(span) => visitor.visit_span(span),
+        AstNode::Identifier(id) => visitor.visit_identifier(id),
+        AstNode::Attribute(attr) => visitor.visit_attribute(attr),
+        AstNode::Error(error) => visitor.visit_error(error),
+    }
+}
 #[derive(Debug, Default)]
 pub struct Attributes {
     pub items: Vec<AstNode>,
@@ -145,6 +209,18 @@ impl AstNode {
             AstNode::Error(error) => error.location,
             AstNode::Component(component) => component.location,
             AstNode::ComponentSlot(slot) => slot.location,
+        }
+    }
+
+    pub fn text<'src>(&self, content: &'src str) -> &'src str {
+        match self {
+            AstNode::String(location) => &content[location.to_range()],
+            AstNode::Primitive(primitive) => &content[primitive.location.to_range()],
+            AstNode::Component(component) => component.name.text(content),
+            AstNode::ComponentSlot(slot) => slot.name.text(content),
+            AstNode::Identifier(location) => &content[location.to_range()],
+            AstNode::Declaration(declaration) => declaration.name.text(content),
+            node => unreachable!("text for {node:?} cannot be retrieved from ast"),
         }
     }
 }

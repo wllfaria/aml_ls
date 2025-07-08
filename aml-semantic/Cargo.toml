@@ -10,5 +10,7 @@ aml-syntax.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 
+tokio = { version = "1.45.1", features = ["io-std"]}
+
 [dev-dependencies]
 insta.workspace = true
