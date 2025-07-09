@@ -137,9 +137,15 @@ impl IntoToken for LexError {
 
 #[derive(Debug, Clone, Serialize, Copy, PartialEq, PartialOrd)]
 pub struct Hex {
-    r: u8,
-    g: u8,
-    b: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+impl std::fmt::Display for Hex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+    }
 }
 
 impl From<(u8, u8, u8)> for Hex {

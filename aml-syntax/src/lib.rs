@@ -2,6 +2,7 @@ pub mod ast;
 pub mod expressions;
 pub mod parser;
 
+use aml_core::Location;
 use ast::*;
 pub use ast::{Ast, Scope};
 pub use parser::Parser;
@@ -10,6 +11,15 @@ pub use parser::Parser;
 pub enum NodeFinderResult<'src> {
     Node(&'src AstNode),
     Expr(&'src Expr),
+}
+
+impl NodeFinderResult<'_> {
+    pub fn location(&self) -> Location {
+        match self {
+            NodeFinderResult::Node(node) => node.location(),
+            NodeFinderResult::Expr(expr) => expr.location(),
+        }
+    }
 }
 
 #[derive(Debug)]
