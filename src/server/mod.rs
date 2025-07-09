@@ -62,6 +62,15 @@ impl LanguageServer for Backend {
             })
             .await
     }
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        let result = self.project_manager.goto_definition(params).await;
+
+        result
+    }
 }
 
 impl Backend {

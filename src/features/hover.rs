@@ -1,5 +1,6 @@
 use aml_semantic::SymbolType;
-use aml_syntax::{Ast, AstNode, Expr};
+use aml_syntax::Ast;
+use aml_syntax::ast::*;
 use aml_token::Container;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;

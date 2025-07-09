@@ -161,7 +161,7 @@ fn test_missing_left_operand() {
     insta::assert_yaml_snapshot!(parse(input));
 }
 
-// TODO: this test panics right now due to an asssertion, but it should produce a nice error
+// TODO: this test panics right now due to an assertion, but it should produce a nice error
 // node for error reporting
 // #[test]
 // fn test_mixed_brackets() {

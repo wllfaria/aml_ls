@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use aml_semantic::global_scope::GlobalScope;
-use aml_semantic::{SemanticAnalyzer, SemanticInfo};
-use aml_syntax::{Ast, Parser};
+use aml_semantic::global_scope::{GlobalScope, GlobalSymbol};
+use aml_semantic::{SemanticAnalyzer, SemanticInfo, Symbol};
+use aml_syntax::ast::*;
+use aml_syntax::{Ast, NodeFinder, NodeFinderResult, Parser};
 use aml_token::{Lexer, Tokens};
 use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
@@ -80,7 +81,7 @@ impl DocumentManager {
         &self,
         params: DidOpenTextDocumentParams,
         globals: &mut GlobalScope,
-        templates: &mut Templates,
+        _templates: &mut Templates,
     ) {
         let uri = params.text_document.uri.clone();
         let content = params.text_document.text;
@@ -122,6 +123,77 @@ impl DocumentManager {
 
     pub async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.files.write().await.remove(&params.text_document.uri);
+    }
+
+    pub async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+        global_scope: &GlobalScope,
+    ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let files = self.files.read().await;
+        let Some(file) = files.get(&uri) else { return Ok(None) };
+        let byte_offset = self.position_to_byte_offset(&file.content, position);
+
+        let mut finder = NodeFinder {
+            byte_offset,
+            result: None,
+        };
+
+        file.ast.accept(&mut finder);
+
+        let local_symbol_location = |symbol: &Symbol| {
+            let start = self.byte_offset_to_position(&file.content, symbol.location.start_byte);
+            let end = self.byte_offset_to_position(&file.content, symbol.location.end_byte);
+            Location {
+                uri: uri.clone(),
+                range: Range::new(start, end),
+            }
+        };
+
+        let global_symbol_location = |symbol: &GlobalSymbol| {
+            let start = self.byte_offset_to_position(&file.content, symbol.location.start_byte);
+            let end = self.byte_offset_to_position(&file.content, symbol.location.end_byte);
+            let symbol_uri = Url::from_file_path(&symbol.definition).unwrap();
+            Location {
+                uri: symbol_uri,
+                range: Range::new(start, end),
+            }
+        };
+
+        let result = match finder.result {
+            Some(NodeFinderResult::Node(node)) => {
+                let name = match node {
+                    AstNode::Identifier(_) => Some(node.text(&file.content)),
+                    AstNode::Declaration(decl) => Some(decl.name.text(&file.content)),
+                    _ => None,
+                };
+
+                let Some(name) = name else { return Ok(None) };
+
+                let global = global_scope
+                    .lookup_symbol(&name)
+                    .map(global_symbol_location);
+
+                let local = file
+                    .semantic_info
+                    .symbol_table
+                    .lookup_symbol(&name)
+                    .map(local_symbol_location);
+
+                match (global, local) {
+                    (Some(g), Some(l)) => Ok(Some(GotoDefinitionResponse::Array(vec![g, l]))),
+                    (Some(g), None) => Ok(Some(GotoDefinitionResponse::Scalar(g))),
+                    (None, Some(l)) => Ok(Some(GotoDefinitionResponse::Scalar(l))),
+                    (None, None) => Ok(None),
+                }
+            }
+            _ => Ok(None),
+        };
+
+        result
     }
 
     pub fn position_to_byte_offset(&self, content: &str, position: Position) -> usize {

@@ -1,5 +1,6 @@
 use aml_core::Location;
-use aml_syntax::{Ast, AstNode};
+use aml_syntax::Ast;
+use aml_syntax::ast::AstNode;
 
 #[derive(Debug, Clone)]
 pub struct ScopeInfo {

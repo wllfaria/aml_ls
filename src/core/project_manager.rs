@@ -6,28 +6,40 @@ use aml_config::Config;
 use aml_core::workspace::get_root_template;
 use aml_semantic::global_scope::{GlobalScope, GlobalSymbol};
 use aml_semantic::{SemanticAnalyzer, SymbolType};
-use aml_syntax::ast::{AstVisitor, Component, Declaration};
+use aml_syntax::ast::*;
 use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
 
 use crate::core::document_manager::{DocumentManager, parse_content};
 
+#[derive(Debug)]
+pub struct Template {
+    pub path: PathBuf,
+}
+
 #[derive(Debug, Default)]
 pub struct Templates {
-    name_to_path_map: HashMap<String, PathBuf>,
+    inner: Vec<Template>,
+    name_map: HashMap<String, usize>,
+    path_map: HashMap<PathBuf, usize>,
 }
 
 impl Templates {
-    pub fn register(&mut self, name: String, path: PathBuf) {
-        self.name_to_path_map.insert(name, path);
+    pub fn register(&mut self, name: String, path: PathBuf, _: bool) {
+        let index = self.inner.len();
+        let template = Template { path: path.clone() };
+
+        self.name_map.insert(name, index);
+        self.path_map.insert(path, index);
+        self.inner.push(template);
     }
 
     pub fn has_template_by_name(&self, name: &str) -> bool {
-        self.name_to_path_map.contains_key(name)
+        self.name_map.contains_key(name)
     }
 
-    pub fn name_to_path_map(&self) -> &HashMap<String, PathBuf> {
-        &self.name_to_path_map
+    pub fn paths(&self) -> impl Iterator<Item = &Template> {
+        self.inner.iter()
     }
 }
 
@@ -95,6 +107,18 @@ impl ProjectManager {
         self.document_manager.write().await.did_close(params).await;
     }
 
+    pub async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        let document_manager = self.document_manager.write().await;
+        let global_scope = self.global_scope.read().await;
+
+        document_manager
+            .goto_definition(params, &global_scope)
+            .await
+    }
+
     pub async fn get_document_manager(&self) -> Arc<RwLock<DocumentManager>> {
         self.document_manager.clone()
     }
@@ -112,7 +136,7 @@ impl ProjectManager {
         let ast = parse_content(&content);
         let mut global_scope = self.global_scope.write().await;
         let mut document_manager = self.document_manager.write().await;
-        templates.register("index".into(), root_template_path.clone());
+        templates.register("index".into(), root_template_path.clone(), false);
 
         ast.accept(&mut TemplateCollector {
             config: &config,
@@ -130,9 +154,9 @@ impl ProjectManager {
     async fn analyze_templates_eagerly(&self) {
         let templates = self.templates.read().await;
 
-        for path in templates.name_to_path_map().values() {
-            let Ok(content) = std::fs::read_to_string(path) else { return };
-            let Ok(uri) = Url::from_file_path(path) else { return };
+        for template in templates.paths() {
+            let Ok(content) = std::fs::read_to_string(&template.path) else { return };
+            let Ok(uri) = Url::from_file_path(&template.path) else { return };
             let ast = parse_content(&content);
             let mut global_scope = self.global_scope.write().await;
 
@@ -155,8 +179,8 @@ struct TemplateCollector<'src> {
     document_manager: &'src mut DocumentManager,
 }
 
-impl AstVisitor for TemplateCollector<'_> {
-    fn visit_globals(&mut self, decl: &Declaration) {
+impl<'src> AstVisitor<'src> for TemplateCollector<'src> {
+    fn visit_globals(&mut self, decl: &Declaration, _: &AstNode) {
         let name = decl.name.text(self.content).into();
         let mut analyzer = SemanticAnalyzer::new(self.content, self.global_scope);
         let symbol_type = SymbolType::Variable(analyzer.analyze_expression(&decl.value));
@@ -169,7 +193,7 @@ impl AstVisitor for TemplateCollector<'_> {
         });
     }
 
-    fn visit_component(&mut self, component: &Component) {
+    fn visit_component(&mut self, component: &Component, _: &AstNode) {
         let name = component.name.text(self.content);
         let path = PathBuf::from(name).with_extension("aml");
         let file_path = self.root_dir.join(&self.config.templates_dir).join(&path);
@@ -179,7 +203,8 @@ impl AstVisitor for TemplateCollector<'_> {
             return;
         }
 
-        self.templates.register(name.into(), file_path.clone());
+        self.templates
+            .register(name.into(), file_path.clone(), false);
         let Ok(content) = std::fs::read_to_string(&file_path) else { return };
         let tokens = aml_token::Lexer::new(&content).collect();
         let tokens = aml_token::Tokens::new(tokens, content.len());
@@ -195,6 +220,24 @@ impl AstVisitor for TemplateCollector<'_> {
             document_manager: self.document_manager,
         });
     }
+
+    fn visit_container(&mut self, container: &'src ContainerNode, _: &'src AstNode) {
+        for child in container.children.iter() {
+            child.accept(self);
+        }
+    }
+
+    fn visit_text(&mut self, text: &'src Text, _: &'src AstNode) {
+        for child in text.children.iter() {
+            child.accept(self);
+        }
+    }
+
+    fn visit_for(&mut self, for_loop: &'src For, _: &'src AstNode) {
+        for child in for_loop.children.iter() {
+            child.accept(self);
+        }
+    }
 }
 
 // NOTE(wiru): this test is commented out because i'm using it currently to debug the
@@ -205,7 +248,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_initialize_workspace() {
-        let mut manager = ProjectManager::new();
+        let manager = ProjectManager::new();
         let sample_project = format!("{}/code/anathest", std::env::var("HOME").unwrap());
         let url = Url::from_file_path(&sample_project).unwrap();
         let params = InitializeParams {

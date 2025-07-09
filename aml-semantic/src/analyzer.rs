@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use aml_core::Location;
-use aml_syntax::ast::{AstVisitor, Attributes, Declaration};
-use aml_syntax::{Ast, AstNode, Expr};
+use aml_syntax::Ast;
+use aml_syntax::ast::*;
 use aml_token::{Operator, Primitive};
 
 use crate::global_scope::{GlobalScope, GlobalSymbol};
@@ -57,7 +57,7 @@ impl<'src> SemanticAnalyzer<'src> {
         }
     }
 
-    pub fn collect_globals(&'src mut self, ast: &Ast) {
+    pub fn collect_globals(&'src mut self, ast: &'src Ast) {
         ast.accept(&mut GlobalCollector {
             file_path: PathBuf::new(),
             content: self.content,
@@ -325,8 +325,8 @@ struct GlobalCollector<'src> {
     analyzer: &'src mut SemanticAnalyzer<'src>,
 }
 
-impl AstVisitor for GlobalCollector<'_> {
-    fn visit_globals(&mut self, decl: &Declaration) {
+impl<'src> AstVisitor<'src> for GlobalCollector<'src> {
+    fn visit_globals(&mut self, decl: &Declaration, _: &AstNode) {
         assert!(decl.is_global());
 
         let name = decl.name.text(self.content).into();

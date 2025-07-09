@@ -1,5 +1,6 @@
-use aml_config::Config;
 use std::path::{Path, PathBuf};
+
+use aml_config::Config;
 
 pub fn get_root_template<P: AsRef<Path>>(root_dir: P, config: &Config) -> Option<PathBuf> {
     let root_template = root_dir
@@ -8,7 +9,7 @@ pub fn get_root_template<P: AsRef<Path>>(root_dir: P, config: &Config) -> Option
         .join(&config.root_template);
 
     if !root_template.exists() {
-        // TOOD(wiru) figure out what to do if the main template doesn't exist
+        // TODO(wiru): figure out what to do if the main template doesn't exist
         return None;
     }
 

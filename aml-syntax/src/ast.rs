@@ -10,20 +10,20 @@ pub struct Scope {
     pub parent: Option<usize>,
 }
 
-pub trait AstVisitor {
-    fn visit_globals(&mut self, _decl: &Declaration) {}
-    fn visit_locals(&mut self, _decl: &Declaration) {}
-    fn visit_string(&mut self, _location: Location) {}
-    fn visit_component(&mut self, _component: &Component) {}
-    fn visit_container(&mut self, _container: &ContainerNode) {}
-    fn visit_text(&mut self, _text: &Text) {}
-    fn visit_for(&mut self, _for_loop: &For) {}
-    fn visit_component_slot(&mut self, _slot: &ComponentSlot) {}
-    fn visit_primitive(&mut self, _prim: &PrimitiveNode) {}
-    fn visit_span(&mut self, _span: &Span) {}
-    fn visit_identifier(&mut self, _ident: &Location) {}
-    fn visit_attribute(&mut self, _attr: &Attribute) {}
-    fn visit_error(&mut self, _err: &ErrorNode) {}
+pub trait AstVisitor<'ast> {
+    fn visit_globals(&mut self, _decl: &'ast Declaration, _node: &'ast AstNode) {}
+    fn visit_locals(&mut self, _decl: &'ast Declaration, _node: &'ast AstNode) {}
+    fn visit_string(&mut self, _location: Location, _node: &'ast AstNode) {}
+    fn visit_component(&mut self, _component: &'ast Component, _node: &'ast AstNode) {}
+    fn visit_container(&mut self, _container: &'ast ContainerNode, _node: &'ast AstNode) {}
+    fn visit_text(&mut self, _text: &'ast Text, _node: &'ast AstNode) {}
+    fn visit_for(&mut self, _for_loop: &'ast For, _node: &'ast AstNode) {}
+    fn visit_component_slot(&mut self, _slot: &'ast ComponentSlot, _node: &'ast AstNode) {}
+    fn visit_primitive(&mut self, _prim: &'ast PrimitiveNode, _node: &'ast AstNode) {}
+    fn visit_span(&mut self, _span: &'ast Span, _node: &'ast AstNode) {}
+    fn visit_identifier(&mut self, _ident: Location, _node: &'ast AstNode) {}
+    fn visit_attribute(&mut self, _attr: &'ast Attribute, _node: &'ast AstNode) {}
+    fn visit_error(&mut self, _err: &'ast ErrorNode, _node: &'ast AstNode) {}
 }
 
 #[derive(Debug, Default)]
@@ -34,66 +34,29 @@ pub struct Ast {
 }
 
 impl Ast {
-    pub fn accept<V>(&self, visitor: &mut V)
+    pub fn accept<'ast, V>(&'ast self, visitor: &mut V)
     where
-        V: AstVisitor,
+        V: AstVisitor<'ast>,
     {
         for node in self.nodes.iter() {
-            traverse_tree(node, visitor);
+            node.accept(visitor);
         }
     }
 }
 
-fn traverse_tree<V>(node: &AstNode, visitor: &mut V)
-where
-    V: AstVisitor,
-{
-    match node {
-        AstNode::String(location) => visitor.visit_string(*location),
-        AstNode::Component(component) => visitor.visit_component(component),
-        AstNode::Declaration(decl) if decl.is_global() => visitor.visit_globals(decl),
-        AstNode::Declaration(decl) => visitor.visit_locals(decl),
-
-        AstNode::Container(container) => {
-            visitor.visit_container(container); // if you later define this
-            for child in &container.children {
-                traverse_tree(child, visitor);
-            }
-        }
-        AstNode::Text(text) => {
-            visitor.visit_text(text); // define if needed
-            for value in &text.values {
-                traverse_tree(value, visitor);
-            }
-        }
-        AstNode::For(for_loop) => {
-            visitor.visit_for(for_loop); // define if needed
-            for child in &for_loop.children {
-                traverse_tree(child, visitor);
-            }
-        }
-
-        AstNode::ComponentSlot(slot) => visitor.visit_component_slot(slot),
-        AstNode::Primitive(primitive) => visitor.visit_primitive(primitive),
-        AstNode::Span(span) => visitor.visit_span(span),
-        AstNode::Identifier(id) => visitor.visit_identifier(id),
-        AstNode::Attribute(attr) => visitor.visit_attribute(attr),
-        AstNode::Error(error) => visitor.visit_error(error),
-    }
-}
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 pub struct Attributes {
     pub items: Vec<AstNode>,
     pub location: Option<Location>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub enum DeclarationKind {
     Local,
     Global,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct Declaration {
     pub kind: DeclarationKind,
     pub name: Box<AstNode>,
@@ -111,32 +74,32 @@ impl Declaration {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct ErrorNode {
     pub token: TokenKind,
     pub location: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct Component {
     pub name: Box<AstNode>,
     pub location: Location,
     pub attributes: Attributes,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct ComponentSlot {
     pub name: Box<AstNode>,
     pub location: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct PrimitiveNode {
     pub value: Primitive,
     pub location: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct ContainerNode {
     pub kind: Container,
     pub children: Vec<AstNode>,
@@ -145,7 +108,7 @@ pub struct ContainerNode {
     pub keyword: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct Text {
     pub values: Vec<AstNode>,
     pub attributes: Attributes,
@@ -154,7 +117,7 @@ pub struct Text {
     pub keyword: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct For {
     pub binding: Box<AstNode>,
     pub value: Expr,
@@ -163,7 +126,7 @@ pub struct For {
     pub keyword: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct Span {
     pub values: Vec<AstNode>,
     pub attributes: Attributes,
@@ -171,14 +134,14 @@ pub struct Span {
     pub keyword: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub struct Attribute {
     pub name: Box<AstNode>,
     pub value: Expr,
     pub location: Location,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum AstNode {
     String(Location),
     Component(Component),
@@ -223,16 +186,50 @@ impl AstNode {
             node => unreachable!("text for {node:?} cannot be retrieved from ast"),
         }
     }
+
+    pub fn accept<'ast, V>(&'ast self, visitor: &mut V)
+    where
+        V: AstVisitor<'ast>,
+    {
+        match self {
+            AstNode::String(location) => visitor.visit_string(*location, self),
+            AstNode::Primitive(primitive) => visitor.visit_primitive(primitive, self),
+            AstNode::Component(component) => visitor.visit_component(component, self),
+            AstNode::ComponentSlot(slot) => visitor.visit_component_slot(slot, self),
+            AstNode::Identifier(location) => visitor.visit_identifier(*location, self),
+            AstNode::Declaration(decl) if decl.is_global() => visitor.visit_globals(decl, self),
+            AstNode::Declaration(declaration) => visitor.visit_locals(declaration, self),
+            AstNode::Attribute(attribute) => visitor.visit_attribute(attribute, self),
+            AstNode::Error(error) => visitor.visit_error(error, self),
+            AstNode::Container(container) => visitor.visit_container(container, self),
+            AstNode::Text(text) => visitor.visit_text(text, self),
+            AstNode::Span(span) => visitor.visit_span(span, self),
+            AstNode::For(for_loop) => visitor.visit_for(for_loop, self),
+        }
+    }
 }
 
-#[derive(Debug, Serialize)]
+pub trait ExprVisitor<'ast> {
+    fn visit_unary(&mut self, _unary: &'ast Unary, _expr: &'ast Expr) {}
+    fn visit_binary(&mut self, _binary: &'ast Binary, _expr: &'ast Expr) {}
+    fn visit_ident(&mut self, _ident: Location, _expr: &'ast Expr) {}
+    fn visit_string(&mut self, _string: Location, _expr: &'ast Expr) {}
+    fn visit_call(&mut self, _call: &'ast Call, _expr: &'ast Expr) {}
+    fn visit_primitive(&mut self, _prim: &'ast PrimitiveExpr, _expr: &'ast Expr) {}
+    fn visit_array_index(&mut self, _index: &'ast ArrayIndex, _expr: &'ast Expr) {}
+    fn visit_list(&mut self, _list: &'ast List, _expr: &'ast Expr) {}
+    fn visit_map(&mut self, _map: &'ast Map, _expr: &'ast Expr) {}
+    fn visit_error(&mut self, _error: &'ast ErrorExpr, _expr: &'ast Expr) {}
+}
+
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct Unary {
     pub op: Operator,
     pub expr: Box<Expr>,
     pub location: Location,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct Binary {
     pub lhs: Box<Expr>,
     pub rhs: Box<Expr>,
@@ -240,7 +237,7 @@ pub struct Binary {
     pub location: Location,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct Call {
     pub fun: Box<Expr>,
     pub args: Vec<Expr>,
@@ -253,26 +250,26 @@ impl Call {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct PrimitiveExpr {
     pub value: Primitive,
     pub location: Location,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct ArrayIndex {
     pub lhs: Box<Expr>,
     pub index: Box<Expr>,
     pub location: Location,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct List {
     pub items: Vec<Expr>,
     pub location: Location,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct Map {
     pub location: Location,
     pub items: Vec<(Expr, Expr)>,
@@ -286,13 +283,13 @@ impl Map {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct ErrorExpr {
     pub token: TokenKind,
     pub location: Location,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub enum Expr {
     Unary(Unary),
     Binary(Binary),
@@ -334,6 +331,24 @@ impl Expr {
             Expr::ArrayIndex(index) => index.lhs.has_error() || index.index.has_error(),
             Expr::List(list) => list.items.iter().any(|item| item.has_error()),
             Expr::Map(map) => map.has_error(),
+        }
+    }
+
+    pub fn accept<'ast, V>(&'ast self, visitor: &mut V)
+    where
+        V: ExprVisitor<'ast>,
+    {
+        match self {
+            Expr::Unary(unary) => visitor.visit_unary(unary, self),
+            Expr::Binary(binary) => visitor.visit_binary(binary, self),
+            Expr::Ident(ident) => visitor.visit_ident(*ident, self),
+            Expr::String(string) => visitor.visit_string(*string, self),
+            Expr::Call(call) => visitor.visit_call(call, self),
+            Expr::Primitive(primitive) => visitor.visit_primitive(primitive, self),
+            Expr::ArrayIndex(array_index) => visitor.visit_array_index(array_index, self),
+            Expr::List(list) => visitor.visit_list(list, self),
+            Expr::Map(map) => visitor.visit_map(map, self),
+            Expr::Error(error) => visitor.visit_error(error, self),
         }
     }
 }

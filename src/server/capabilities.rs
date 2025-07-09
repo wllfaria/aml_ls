@@ -12,6 +12,7 @@ pub fn server_capabilities() -> ServerCapabilities {
             workspace_diagnostics: false,
             work_done_progress_options: WorkDoneProgressOptions::default(),
         })),
+        definition_provider: Some(OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }
