@@ -1,5 +1,4 @@
 use aml_semantic::global_scope::GlobalScope;
-use aml_semantic::{SymbolType, ValueType};
 use aml_syntax::ast::*;
 use aml_syntax::{NodeFinder, NodeFinderResult};
 use aml_token::{Container, Primitive};
@@ -41,7 +40,7 @@ impl HoverProvider {
 
         file_info.ast.accept(&mut finder);
         let Some(result) = finder.result else { return Ok(None) };
-        let Some(value) = self.get_hover_content(&result, &file_info, ctx.global_scope) else {
+        let Some(value) = self.get_hover_content(&result, file_info, ctx.global_scope) else {
             return Ok(None);
         };
 
@@ -95,28 +94,25 @@ impl HoverProvider {
             AstNode::Error { .. } => None,
             AstNode::String(location) => self.get_string_content(location, &file_info.content),
             AstNode::Identifier(location) => {
-                self.get_identifier_content(location, &file_info.content, &file_info)
+                self.get_identifier_content(location, &file_info.content, file_info)
             }
             AstNode::Declaration(_) => None,
             AstNode::Attribute(_) => None,
-            AstNode::Component(component) => None,
-            AstNode::ComponentSlot(component_slot) => None,
+            AstNode::Component(_) => None,
+            AstNode::ComponentSlot(_) => None,
             AstNode::For(_) => None,
         }
     }
 
     fn get_hover_content_for_expr(&self, expr: &Expr, file_info: &FileInfo) -> Option<String> {
         match expr {
-            Expr::Unary(unary) => None,
-            Expr::Binary(binary) => None,
+            Expr::Call(_) => None,
+            Expr::Unary(_) => None,
+            Expr::Binary(_) => None,
             Expr::Ident(location) => {
-                self.get_identifier_content(location, &file_info.content, &file_info)
+                self.get_identifier_content(location, &file_info.content, file_info)
             }
             Expr::String(location) => self.get_string_content(location, &file_info.content),
-            Expr::Call(call) => {
-                let fun_name = &file_info.content[call.fun.location().to_range()];
-                Some(format!("```aml\n{fun_name}()\n```"))
-            }
             Expr::Primitive(prim) => match prim.value {
                 Primitive::Bool(bool) => Some(format!("```aml\n{bool}\n```")),
                 Primitive::Hex(hex) => {
@@ -155,16 +151,24 @@ impl HoverProvider {
                     Some(content)
                 }
             },
-            Expr::ArrayIndex(array_index) => None,
-            Expr::List(list) => None,
-            Expr::Map(map) => None,
-            Expr::Error(error_expr) => None,
+            Expr::ArrayIndex(_) => None,
+            Expr::List(_) => None,
+            Expr::Map(_) => None,
+            Expr::Error(_) => None,
         }
     }
 
     fn get_string_content(&self, location: &aml_core::Location, content: &str) -> Option<String> {
         let content = &content[location.to_range()];
-        Some(format!("```aml\n{content}\n```"))
+        let content = [
+            "```aml",
+            &content.to_string(),
+            "```",
+            "---",
+            "A string value.",
+        ]
+        .join("\n");
+        Some(content)
     }
 
     fn get_identifier_content(
@@ -178,7 +182,6 @@ impl HoverProvider {
         let template = &file_info.name;
 
         if let Some(symbol) = file_info.semantic_info.symbol_table.lookup_symbol(name) {
-            let declaration = file_info.content[symbol.location.to_range()].to_string();
             let symbol_type = &symbol.symbol_type;
 
             let content = [
@@ -195,5 +198,3 @@ impl HoverProvider {
         None
     }
 }
-
-fn a() {}

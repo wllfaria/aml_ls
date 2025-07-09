@@ -182,3 +182,12 @@ for  in [1,2,3]
     let ast = get_ast(template);
     insta::assert_yaml_snapshot!(ast);
 }
+
+#[test]
+fn test_function_call_on_variable() {
+    let template = r#"
+local result = func()
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}

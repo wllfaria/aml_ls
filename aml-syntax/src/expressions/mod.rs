@@ -205,16 +205,16 @@ fn parse_collection(tokens: &mut Tokens, start_location: Location) -> Expr {
     let end_location = loop {
         let next_token = tokens.peek_skip_indent();
         match next_token.kind() {
-            TokenKind::Newline => {
-                tokens.consume();
-                break next_token.location();
-            }
             TokenKind::Eof => {
                 items.push(Expr::Error(ErrorExpr {
                     location: next_token.location(),
                     token: next_token.kind(),
                 }));
                 break next_token.location();
+            }
+            TokenKind::Newline => {
+                tokens.consume();
+                continue;
             }
             TokenKind::Operator(Operator::RBracket) => {
                 tokens.consume();

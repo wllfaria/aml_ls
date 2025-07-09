@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use aml_core::Location;
 use serde::Serialize;
@@ -29,10 +29,11 @@ impl std::fmt::Display for SymbolType {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Hash)]
 pub enum ValueType {
     String,
-    Number,
+    Int,
+    Float,
     Boolean,
-    List(Box<ValueType>),
-    Map(Box<ValueType>, Box<ValueType>),
+    List(Vec<ValueType>),
+    Map(Vec<(ValueType, ValueType)>),
     Hex,
     Unknown,
 }
@@ -41,10 +42,49 @@ impl std::fmt::Display for ValueType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ValueType::String => write!(f, "string"),
-            ValueType::Number => write!(f, "number"),
+            ValueType::Int => write!(f, "int"),
+            ValueType::Float => write!(f, "float"),
             ValueType::Boolean => write!(f, "bool"),
-            ValueType::List(value_type) => write!(f, "list<{value_type}>"),
-            ValueType::Map(key_type, value_type) => write!(f, "map<{key_type}, {value_type}>"),
+            ValueType::List(value_types) => {
+                let distinct_types = value_types
+                    .iter()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+
+                let mut list_type = String::from("list<");
+
+                for (idx, t) in distinct_types.iter().enumerate() {
+                    list_type.push_str(&format!("{t}"));
+                    if idx < distinct_types.len() - 1 {
+                        list_type.push_str(" | ");
+                    }
+                }
+
+                list_type.push('>');
+
+                write!(f, "{list_type}")
+            }
+            ValueType::Map(entry_types) => {
+                let distinct_types = entry_types
+                    .iter()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+
+                let mut map_type = String::from("map<");
+
+                for (idx, (_, v)) in distinct_types.iter().enumerate() {
+                    map_type.push_str(&format!("{v}"));
+                    if idx < distinct_types.len() - 1 {
+                        map_type.push_str(" | ");
+                    }
+                }
+
+                map_type.push('>');
+
+                write!(f, "{map_type}")
+            }
             ValueType::Hex => write!(f, "hex"),
             ValueType::Unknown => write!(f, "unknown"),
         }

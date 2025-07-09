@@ -13,7 +13,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Creates a amls.toml on the current working directory or on the specified path
+    /// Creates a aml_ls.toml on the current working directory or on the specified path
     Init {
         /// The path to create the amls.toml file in.
         path: Option<String>,

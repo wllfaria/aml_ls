@@ -37,14 +37,4 @@ impl GlobalScope {
     pub fn lookup_symbol(&self, name: &str) -> Option<&GlobalSymbol> {
         self.globals.get(name)
     }
-
-    // pub async fn get_global_location(&self, name: &str) -> Option<PathBuf> {
-    //     let globals = self.globals.read().await;
-    //     globals.get(symbol).cloned()
-    // }
-    //
-    // pub async fn is_global_defined(&self, symbol: &str) -> bool {
-    //     let globals = self.globals.read().await;
-    //     globals.contains_key(symbol)
-    // }
 }

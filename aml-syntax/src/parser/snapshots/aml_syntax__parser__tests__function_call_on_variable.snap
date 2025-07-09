@@ -1,0 +1,33 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - Declaration:
+      kind: Local
+      name:
+        Identifier:
+          value: result
+          location:
+            start_byte: 7
+            end_byte: 13
+      value:
+        Call:
+          fun:
+            Ident:
+              value: func
+              location:
+                start_byte: 16
+                end_byte: 20
+          args: []
+          location:
+            start_byte: 16
+            end_byte: 22
+          original: func()
+      location:
+        start_byte: 1
+        end_byte: 22
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

@@ -66,7 +66,14 @@ impl<'src> SemanticAnalyzer<'src> {
     }
 
     fn declare_variable(&mut self, declaration: &Declaration) {
-        let name = self.get_node_text(&declaration.name);
+        let Some(name) = self.get_node_text(&declaration.name) else {
+            self.add_diagnostic(
+                declaration.name.location(),
+                "invalid identifier name".into(),
+                DiagnosticSeverity::Error,
+            );
+            return;
+        };
         let value_type = self.analyze_expression(&declaration.value);
         let symbol_type = SymbolType::Variable(value_type);
 
@@ -91,7 +98,13 @@ impl<'src> SemanticAnalyzer<'src> {
             AstNode::Identifier { .. } => {}
             AstNode::String { .. } => {}
             AstNode::Primitive { .. } => {}
-            AstNode::Error { .. } => {}
+            AstNode::Error(error) => {
+                self.add_diagnostic(
+                    error.location,
+                    format!("unexpected token '{:?}'", error.token),
+                    DiagnosticSeverity::Error,
+                );
+            }
 
             // Local declarations are collected as they are defined, although they are also
             // hoisted to the root scope, they cannot be used before being declared
@@ -149,6 +162,14 @@ impl<'src> SemanticAnalyzer<'src> {
                 AstNode::Primitive { .. } => {}
                 AstNode::Identifier { .. } => {
                     let name = self.get_node_text(value);
+                    let Some(name) = name else {
+                        self.add_diagnostic(
+                            value.location(),
+                            "invalid identifier name".into(),
+                            DiagnosticSeverity::Error,
+                        );
+                        continue;
+                    };
 
                     if self.symbol_table.lookup_symbol(name).is_some() {
                         continue;
@@ -160,10 +181,9 @@ impl<'src> SemanticAnalyzer<'src> {
 
                     self.add_diagnostic(
                         location,
-                        format!("reference to undefined identifier '{name}'"),
+                        format!("reference to undefined identifier '{name:?}'"),
                         DiagnosticSeverity::Error,
                     );
-                    return;
                 }
                 _ => self.add_diagnostic(
                     location,
@@ -179,32 +199,25 @@ impl<'src> SemanticAnalyzer<'src> {
             Expr::String(_) => ValueType::String,
             Expr::Primitive(primitive) => match primitive.value {
                 Primitive::Bool(_) => ValueType::Boolean,
-                Primitive::Int(_) => ValueType::Number,
-                Primitive::Float(_) => ValueType::Number,
+                Primitive::Int(_) => ValueType::Int,
+                Primitive::Float(_) => ValueType::Float,
                 Primitive::Hex(_) => ValueType::Hex,
             },
             Expr::Ident(location) => self.resolve_identifier_type(*location),
-            Expr::List(list) => list
-                .items
-                .iter()
-                .map(|expr| self.analyze_expression(expr))
-                .find(|t| !matches!(t, ValueType::Unknown))
-                .unwrap_or(ValueType::Unknown),
+            Expr::List(list) => ValueType::List(
+                list.items
+                    .iter()
+                    .map(|expr| self.analyze_expression(expr))
+                    .collect(),
+            ),
             Expr::Map(map) => {
-                let (key_type, value_type) = map
+                let entry_types = map
                     .items
                     .iter()
                     .map(|(key, val)| (self.analyze_expression(key), self.analyze_expression(val)))
-                    .fold(
-                        (ValueType::Unknown, ValueType::Unknown),
-                        |(acc_k, acc_v), (k, v)| {
-                            (
-                                if matches!(acc_k, ValueType::Unknown) { k } else { acc_k },
-                                if matches!(acc_v, ValueType::Unknown) { v } else { acc_v },
-                            )
-                        },
-                    );
-                ValueType::Map(Box::new(key_type), Box::new(value_type))
+                    .collect();
+
+                ValueType::Map(entry_types)
             }
             Expr::Binary(binary) => {
                 let lhs_type = self.analyze_expression(&binary.lhs);
@@ -215,14 +228,22 @@ impl<'src> SemanticAnalyzer<'src> {
             }
             Expr::Unary(unary) => {
                 let expr_type = self.analyze_expression(&unary.expr);
-                match unary.op {
-                    Operator::Not => ValueType::Boolean,
-                    Operator::Minus => ValueType::Number,
-                    _ => expr_type,
+
+                match (unary.op, expr_type) {
+                    (Operator::Not, ValueType::Boolean) => ValueType::Boolean,
+                    (Operator::Minus, ValueType::Int) => ValueType::Int,
+                    (Operator::Minus, ValueType::Float) => ValueType::Float,
+                    (op, expr) => {
+                        self.add_diagnostic(
+                            unary.location,
+                            format!("invalid operand type {expr} for operator '{op:?}'"),
+                            DiagnosticSeverity::Error,
+                        );
+                        ValueType::Unknown
+                    }
                 }
             }
             Expr::Call(call) => {
-                self.analyze_expression(&call.fun);
                 for arg in call.args.iter() {
                     self.analyze_expression(arg);
                 }
@@ -230,13 +251,34 @@ impl<'src> SemanticAnalyzer<'src> {
             }
             Expr::ArrayIndex(array_index) => {
                 let lhs_type = self.analyze_expression(&array_index.lhs);
-                self.analyze_expression(&array_index.index);
-                match lhs_type {
-                    ValueType::List(element_type) => *element_type,
-                    _ => ValueType::Unknown,
-                }
+
+                let ValueType::List(items) = lhs_type else {
+                    return self.error(
+                        array_index.lhs.location(),
+                        "array index must be applied to a list",
+                    );
+                };
+
+                let loc = array_index.location;
+                let val = match self.extract_integer_literal(expr) {
+                    Some(v) if v < 0 => return self.error(loc, "index must be non-negative"),
+                    Some(v) if (v as usize) >= items.len() => {
+                        return self.error(loc, "array index out of bounds");
+                    }
+                    Some(v) => v as usize,
+                    None => return self.error(loc, "array index must be an integer"),
+                };
+
+                items[val].clone()
             }
-            Expr::Error(_) => ValueType::Unknown,
+            Expr::Error(error) => {
+                self.add_diagnostic(
+                    error.location,
+                    format!("unexpected token '{:?}'", error.token),
+                    DiagnosticSeverity::Error,
+                );
+                ValueType::Unknown
+            }
         }
     }
 
@@ -268,7 +310,8 @@ impl<'src> SemanticAnalyzer<'src> {
     fn get_operator_result_type(&self, op: Operator) -> ValueType {
         match op {
             Operator::Plus | Operator::Minus | Operator::Mul | Operator::Div | Operator::Mod => {
-                ValueType::Number
+                // TODO: can't really determine if its an int or float
+                ValueType::Int
             }
             Operator::EqualEqual
             | Operator::NotEqual
@@ -297,12 +340,17 @@ impl<'src> SemanticAnalyzer<'src> {
         }
     }
 
-    fn get_node_text(&self, node: &AstNode) -> &'src str {
+    fn get_node_text(&self, node: &AstNode) -> Option<&'src str> {
         match node {
-            AstNode::Identifier(location) => &self.content[location.to_range()],
-            AstNode::String(location) => &self.content[location.to_range()],
-            _ => panic!("Unsupported node type for text extraction"),
+            AstNode::Identifier(location) => Some(&self.content[location.to_range()]),
+            AstNode::String(location) => Some(&self.content[location.to_range()]),
+            _ => None,
         }
+    }
+
+    fn error(&mut self, location: Location, message: impl Into<String>) -> ValueType {
+        self.add_diagnostic(location, message.into(), DiagnosticSeverity::Error);
+        ValueType::Unknown
     }
 
     fn add_diagnostic(
@@ -316,6 +364,16 @@ impl<'src> SemanticAnalyzer<'src> {
             message,
             severity,
         });
+    }
+
+    fn extract_integer_literal(&self, expr: &Expr) -> Option<i64> {
+        match expr {
+            Expr::Primitive(primitive) => match primitive.value {
+                Primitive::Int(i) => Some(i),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 }
 

@@ -79,11 +79,11 @@ impl DocumentManager {
             let name = uri
                 .as_str()
                 .split('/')
-                .last()
+                .next_back()
                 .expect("uri is not a file path")
                 .to_string();
 
-            let path = PathBuf::from(uri.to_file_path().expect("uri is not a file path"));
+            let path = uri.to_file_path().expect("uri is not a file path");
             let file_info = FileInfo::new(content, ast, semantic_info, version, path, name);
             files.insert(uri, file_info);
         }
@@ -187,7 +187,7 @@ impl DocumentManager {
             }
         };
 
-        let result = match finder.result {
+        match finder.result {
             Some(NodeFinderResult::Node(node)) => {
                 let name = match node {
                     AstNode::Identifier(_) => Some(node.text(&file.content)),
@@ -197,14 +197,12 @@ impl DocumentManager {
 
                 let Some(name) = name else { return Ok(None) };
 
-                let global = global_scope
-                    .lookup_symbol(&name)
-                    .map(global_symbol_location);
+                let global = global_scope.lookup_symbol(name).map(global_symbol_location);
 
                 let local = file
                     .semantic_info
                     .symbol_table
-                    .lookup_symbol(&name)
+                    .lookup_symbol(name)
                     .map(local_symbol_location);
 
                 match (global, local) {
@@ -215,9 +213,7 @@ impl DocumentManager {
                 }
             }
             _ => Ok(None),
-        };
-
-        result
+        }
     }
 
     /// Converts a LSP position to a byte offset in the given content.
