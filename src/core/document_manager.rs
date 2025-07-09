@@ -9,7 +9,7 @@ use aml_token::{Lexer, Tokens};
 use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
 
-use crate::core::project_manager::Templates;
+use crate::core::template_service::Templates;
 
 pub fn parse_content(content: &str) -> Ast {
     let tokens = Lexer::new(content).collect();
