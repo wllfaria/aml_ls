@@ -35,10 +35,10 @@ impl DiagnosticProvider {
     fn convert_semantic_diagnostic(
         &self,
         semantic_diag: &SemanticDiagnostic,
-        document_manager: &DocumentManager,
+        _document_manager: &DocumentManager,
         content: &str,
     ) -> Diagnostic {
-        let range = self.location_to_range(semantic_diag.location, document_manager, content);
+        let range = self.location_to_range(semantic_diag.location, content);
         let severity = self.convert_severity(&semantic_diag.severity);
 
         Diagnostic {
@@ -54,14 +54,9 @@ impl DiagnosticProvider {
         }
     }
 
-    fn location_to_range(
-        &self,
-        location: Location,
-        document_manager: &DocumentManager,
-        content: &str,
-    ) -> Range {
-        let start_pos = document_manager.byte_offset_to_position(content, location.start_byte);
-        let end_pos = document_manager.byte_offset_to_position(content, location.end_byte);
+    fn location_to_range(&self, location: Location, content: &str) -> Range {
+        let start_pos = DocumentManager::byte_offset_to_position(content, location.start_byte);
+        let end_pos = DocumentManager::byte_offset_to_position(content, location.end_byte);
 
         Range {
             start: start_pos,

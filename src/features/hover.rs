@@ -29,9 +29,7 @@ impl HoverProvider {
         let files = ctx.document_manager.files().read().await;
         let Some(file_info) = files.get(&uri) else { return Ok(None) };
 
-        let byte_offset = ctx
-            .document_manager
-            .position_to_byte_offset(&file_info.content, position);
+        let byte_offset = DocumentManager::position_to_byte_offset(&file_info.content, position);
 
         let mut finder = NodeFinder {
             byte_offset,
@@ -50,13 +48,8 @@ impl HoverProvider {
         });
 
         let range = Some(Range {
-            start: ctx
-                .document_manager
-                .byte_offset_to_position(&file_info.content, location.start_byte),
-
-            end: ctx
-                .document_manager
-                .byte_offset_to_position(&file_info.content, location.end_byte),
+            start: DocumentManager::byte_offset_to_position(&file_info.content, location.start_byte),
+            end: DocumentManager::byte_offset_to_position(&file_info.content, location.end_byte),
         });
 
         Ok(Some(Hover { contents, range }))

@@ -104,8 +104,8 @@ impl DocumentManager {
         for change in params.content_changes {
             if let Some(range) = change.range {
                 // this is an incremental update. We apply the change to our stored content.
-                let start = self.position_to_byte_offset(&file.content, range.start);
-                let end = self.position_to_byte_offset(&file.content, range.end);
+                let start = DocumentManager::position_to_byte_offset(&file.content, range.start);
+                let end = DocumentManager::position_to_byte_offset(&file.content, range.end);
                 file.content.replace_range(start..end, &change.text);
             } else {
                 // this is a full update. The client has sent the entire document content.
@@ -135,7 +135,7 @@ impl DocumentManager {
 
         let files = self.files.read().await;
         let Some(file) = files.get(&uri) else { return Ok(None) };
-        let byte_offset = self.position_to_byte_offset(&file.content, position);
+        let byte_offset = DocumentManager::position_to_byte_offset(&file.content, position);
 
         let mut finder = NodeFinder {
             byte_offset,
@@ -145,8 +145,10 @@ impl DocumentManager {
         file.ast.accept(&mut finder);
 
         let local_symbol_location = |symbol: &Symbol| {
-            let start = self.byte_offset_to_position(&file.content, symbol.location.start_byte);
-            let end = self.byte_offset_to_position(&file.content, symbol.location.end_byte);
+            let start =
+                DocumentManager::byte_offset_to_position(&file.content, symbol.location.start_byte);
+            let end =
+                DocumentManager::byte_offset_to_position(&file.content, symbol.location.end_byte);
             Location {
                 uri: uri.clone(),
                 range: Range::new(start, end),
@@ -154,8 +156,10 @@ impl DocumentManager {
         };
 
         let global_symbol_location = |symbol: &GlobalSymbol| {
-            let start = self.byte_offset_to_position(&file.content, symbol.location.start_byte);
-            let end = self.byte_offset_to_position(&file.content, symbol.location.end_byte);
+            let start =
+                DocumentManager::byte_offset_to_position(&file.content, symbol.location.start_byte);
+            let end =
+                DocumentManager::byte_offset_to_position(&file.content, symbol.location.end_byte);
             let symbol_uri = Url::from_file_path(&symbol.definition).unwrap();
             Location {
                 uri: symbol_uri,
@@ -196,7 +200,9 @@ impl DocumentManager {
         result
     }
 
-    pub fn position_to_byte_offset(&self, content: &str, position: Position) -> usize {
+    /// Converts a LSP position to a byte offset in the given content.
+    /// This handles UTF-8 correctly by iterating through characters.
+    pub fn position_to_byte_offset(content: &str, position: Position) -> usize {
         let mut byte_offset = 0;
         let mut current_line = 0;
         let mut current_char = 0;
@@ -219,7 +225,9 @@ impl DocumentManager {
         byte_offset
     }
 
-    pub fn byte_offset_to_position(&self, content: &str, byte_offset: usize) -> Position {
+    /// Converts a byte offset to a LSP position in the given content.
+    /// This handles UTF-8 correctly by iterating through characters.
+    pub fn byte_offset_to_position(content: &str, byte_offset: usize) -> Position {
         let mut current_line = 0;
         let mut current_char = 0;
         let mut current_byte = 0;

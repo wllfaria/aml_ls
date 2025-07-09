@@ -52,12 +52,12 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
-        let dm = self.project_manager.get_document_manager().await;
-        let dm_guard = dm.read().await;
+        let document_manager = self.project_manager.get_document_manager().await;
+        let document_manager_guard = document_manager.read().await;
 
         self.hover_provider
             .hover(HoverContext {
-                document_manager: &dm_guard,
+                document_manager: &document_manager_guard,
                 params,
             })
             .await
@@ -75,12 +75,12 @@ impl LanguageServer for Backend {
 
 impl Backend {
     async fn publish_diagnostics(&self, uri: &Url) {
-        let dm = self.project_manager.get_document_manager().await;
-        let dm_guard = dm.read().await;
+        let document_manager = self.project_manager.get_document_manager().await;
+        let document_manager_guard = document_manager.read().await;
 
         let diagnostics = self
             .diagnostic_provider
-            .get_diagnostics(&dm_guard, uri)
+            .get_diagnostics(&document_manager_guard, uri)
             .await;
         self.client
             .publish_diagnostics(uri.clone(), diagnostics, None)

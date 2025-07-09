@@ -81,7 +81,7 @@ impl ProjectManager {
         *self.config.write().await = config;
 
         self.initialize_workspace().await;
-        self.analyze_templates_eagerly().await;
+        self.preload_workspace_templates().await;
     }
 
     pub async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -149,9 +149,10 @@ impl ProjectManager {
         });
     }
 
-    /// Upon initialization, we analyze the templates we found eagerly to produce workspace
-    /// diagnostics for the entire project rather than only the current file
-    async fn analyze_templates_eagerly(&self) {
+    /// Preloads and analyzes all discovered templates to provide workspace-wide diagnostics.
+    /// This runs after workspace initialization to ensure all templates are processed
+    /// and available for cross-file analysis and diagnostics.
+    async fn preload_workspace_templates(&self) {
         let templates = self.templates.read().await;
 
         for template in templates.paths() {
@@ -169,6 +170,11 @@ impl ProjectManager {
     }
 }
 
+/// Discovers and registers templates during workspace initialization by walking the AST of
+/// templates, collecting:
+///
+/// - Global variable declarations (registered in `GlobalScope`)
+/// - Component references (recursively processes referenced template files)
 struct TemplateCollector<'src> {
     content: &'src str,
     config: &'src Config,
@@ -198,6 +204,7 @@ impl<'src> AstVisitor<'src> for TemplateCollector<'src> {
         let path = PathBuf::from(name).with_extension("aml");
         let file_path = self.root_dir.join(&self.config.templates_dir).join(&path);
 
+        // Prevent infinite recursion by checking if template is already registered.
         // TODO(wiru): this has to become a diagnostic of cyclic dependency
         if self.templates.has_template_by_name(name) {
             return;
