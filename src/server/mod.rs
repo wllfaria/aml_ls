@@ -54,10 +54,12 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let document_manager = self.project_manager.get_document_manager().await;
         let document_manager_guard = document_manager.read().await;
+        let global_scope = self.project_manager.global_scope.read().await;
 
         self.hover_provider
             .hover(HoverContext {
                 document_manager: &document_manager_guard,
+                global_scope: &global_scope,
                 params,
             })
             .await

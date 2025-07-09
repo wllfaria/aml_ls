@@ -196,4 +196,3 @@ impl<'src> AstVisitor<'src> for TemplateCollector<'src> {
         }
     }
 }
-

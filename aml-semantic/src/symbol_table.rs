@@ -17,6 +17,15 @@ pub enum SymbolType {
     Element,
 }
 
+impl std::fmt::Display for SymbolType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SymbolType::Variable(value_type) => write!(f, "{value_type}"),
+            SymbolType::Element => write!(f, "element"),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Hash)]
 pub enum ValueType {
     String,
@@ -26,6 +35,20 @@ pub enum ValueType {
     Map(Box<ValueType>, Box<ValueType>),
     Hex,
     Unknown,
+}
+
+impl std::fmt::Display for ValueType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValueType::String => write!(f, "string"),
+            ValueType::Number => write!(f, "number"),
+            ValueType::Boolean => write!(f, "bool"),
+            ValueType::List(value_type) => write!(f, "list<{value_type}>"),
+            ValueType::Map(key_type, value_type) => write!(f, "map<{key_type}, {value_type}>"),
+            ValueType::Hex => write!(f, "hex"),
+            ValueType::Unknown => write!(f, "unknown"),
+        }
+    }
 }
 
 #[derive(Debug, Default)]

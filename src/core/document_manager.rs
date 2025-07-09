@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use aml_semantic::global_scope::{GlobalScope, GlobalSymbol};
@@ -23,15 +24,26 @@ pub struct FileInfo {
     pub ast: Ast,
     pub semantic_info: SemanticInfo,
     pub version: i32,
+    pub name: String,
+    pub path: PathBuf,
 }
 
 impl FileInfo {
-    pub fn new(content: String, ast: Ast, semantic_info: SemanticInfo, version: i32) -> Self {
+    pub fn new(
+        content: String,
+        ast: Ast,
+        semantic_info: SemanticInfo,
+        version: i32,
+        path: PathBuf,
+        name: String,
+    ) -> Self {
         Self {
             ast,
             content,
             semantic_info,
             version,
+            name,
+            path,
         }
     }
 }
@@ -64,7 +76,15 @@ impl DocumentManager {
             file.semantic_info = semantic_info;
             file.version = version
         } else {
-            let file_info = FileInfo::new(content, ast, semantic_info, version);
+            let name = uri
+                .as_str()
+                .split('/')
+                .last()
+                .expect("uri is not a file path")
+                .to_string();
+
+            let path = PathBuf::from(uri.to_file_path().expect("uri is not a file path"));
+            let file_info = FileInfo::new(content, ast, semantic_info, version, path, name);
             files.insert(uri, file_info);
         }
     }
