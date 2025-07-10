@@ -191,3 +191,43 @@ local result = func()
     let ast = get_ast(template);
     insta::assert_yaml_snapshot!(ast);
 }
+
+#[test]
+fn test_if_statement() {
+    let template = r#"
+if condition
+    text "Hello"
+else
+    text "World"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_if_elseif_statement() {
+    let template = r#"
+if condition
+    text "Hello"
+else if condition
+    text "World"
+else
+    text "!"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_malformed_if_elseif_statement() {
+    let template = r#"
+if condition
+    text "Hello"
+else if
+    text "World"
+else
+    text "!"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}

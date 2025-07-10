@@ -1,8 +1,9 @@
 use aml_token::{Element, Operator, TokenKind, Tokens};
 
 use crate::ast::{
-    Ast, AstNode, Attribute, Attributes, Component, ComponentSlot, ContainerNode, Declaration,
-    DeclarationKind, ErrorNode, For, PrimitiveNode, Scope, Span, Text,
+    Ast, AstNode, Attribute, Attributes, Component, ComponentSlot, ConditionalBranch,
+    ContainerNode, Declaration, DeclarationKind, Else, ErrorNode, For, If, IfChain, PrimitiveNode,
+    Scope, Span, Text,
 };
 use crate::expressions::parse_expression;
 
@@ -110,7 +111,8 @@ impl Parser {
     }
 
     fn parse_node(&mut self, current_indent: usize) -> AstNode {
-        match self.tokens.peek_skip_indent().kind() {
+        let token = self.tokens.peek_skip_indent();
+        match token.kind() {
             TokenKind::Element(element) => self.parse_element(element, current_indent),
             TokenKind::Container(_) => self.parse_container(current_indent),
             TokenKind::String(_) => self.parse_string(),
@@ -121,22 +123,13 @@ impl Parser {
             TokenKind::Component => self.parse_component(),
             TokenKind::ComponentSlot => self.parse_component_slot(),
             TokenKind::For => self.parse_for_loop(current_indent),
-            TokenKind::If => todo!(),
+            TokenKind::If => self.parse_if_statement(current_indent),
             TokenKind::Switch => todo!(),
             TokenKind::With => todo!(),
-
-            TokenKind::Indent(_) => todo!(),
-            TokenKind::Else => todo!(),
-            TokenKind::In => todo!(),
-            TokenKind::Case => todo!(),
-            TokenKind::Default => todo!(),
-            TokenKind::As => todo!(),
-            TokenKind::Eof => todo!(),
-            TokenKind::Newline => todo!(),
-            TokenKind::Operator(_) => todo!(),
-            TokenKind::Primitive(_) => todo!(),
-            TokenKind::Error(_) => todo!(),
-            TokenKind::Equal => todo!(),
+            _ => AstNode::Error(ErrorNode {
+                token: token.kind(),
+                location: token.location(),
+            }),
         }
     }
 
@@ -274,6 +267,69 @@ impl Parser {
             location,
             keyword: keyword.location(),
         })
+    }
+
+    fn parse_if_statement(&mut self, current_indent: usize) -> AstNode {
+        let mut branches = vec![];
+        let mut start_location = self.tokens.peek().location();
+
+        while let Some(branch) = self.parse_conditional_branch(current_indent) {
+            branches.push(branch);
+        }
+
+        let last_branch_location = branches.last().map(|branch| branch.location());
+        let location = start_location.merge(last_branch_location.unwrap_or(start_location));
+
+        AstNode::If(IfChain { branches, location })
+    }
+
+    fn parse_conditional_branch(&mut self, current_indent: usize) -> Option<ConditionalBranch> {
+        match self.tokens.peek().kind() {
+            TokenKind::If => Some(ConditionalBranch::If(self.parse_if_node(current_indent))),
+            TokenKind::Else => {
+                let next_token = self.tokens.next_token();
+                let keyword = next_token.location();
+                self.tokens.consume_indent();
+                assert!(next_token.kind() == TokenKind::Else);
+
+                match self.tokens.peek().kind() {
+                    TokenKind::If => {
+                        let if_node = self.parse_if_node(current_indent);
+                        Some(ConditionalBranch::ElseIf(keyword, if_node))
+                    }
+                    _ => {
+                        let children = self.maybe_parse_block(current_indent);
+                        let last_child_location = children.last().map(|node| node.location());
+                        let location = keyword.merge(last_child_location.unwrap_or(keyword));
+
+                        Some(ConditionalBranch::Else(Else {
+                            children,
+                            location,
+                            keyword,
+                        }))
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn parse_if_node(&mut self, current_indent: usize) -> If {
+        let keyword = self.tokens.next_token().location();
+        self.tokens.consume_indent();
+        let condition = parse_expression(&mut self.tokens);
+        let then = self.maybe_parse_block(current_indent);
+
+        let then_location = then.last().map(|node| node.location());
+        let condition_location = condition.location();
+        let location = keyword.merge(then_location.unwrap_or(condition_location));
+
+        If {
+            then,
+            keyword,
+            location,
+            condition,
+        }
     }
 
     fn parse_values(&mut self) -> Vec<AstNode> {

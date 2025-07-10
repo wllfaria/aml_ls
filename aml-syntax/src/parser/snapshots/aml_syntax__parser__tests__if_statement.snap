@@ -1,0 +1,75 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - If:
+      branches:
+        - If:
+            condition:
+              Ident:
+                value: condition
+                location:
+                  start_byte: 4
+                  end_byte: 13
+            then:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"Hello\""
+                        location:
+                          start_byte: 23
+                          end_byte: 30
+                  attributes: []
+                  children: []
+                  text: "text \"Hello\""
+                  location:
+                    start_byte: 18
+                    end_byte: 30
+                  keyword:
+                    start_byte: 18
+                    end_byte: 22
+            keyword:
+              start_byte: 1
+              end_byte: 3
+            location:
+              start_byte: 1
+              end_byte: 30
+            original: "if condition\n    text \"Hello\""
+        - Else:
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"World\""
+                        location:
+                          start_byte: 45
+                          end_byte: 52
+                  attributes: []
+                  children: []
+                  text: "text \"World\""
+                  location:
+                    start_byte: 40
+                    end_byte: 52
+                  keyword:
+                    start_byte: 40
+                    end_byte: 44
+            location:
+              start_byte: 31
+              end_byte: 52
+            keyword:
+              start_byte: 31
+              end_byte: 35
+            original: "else\n    text \"World\""
+      location:
+        start_byte: 1
+        end_byte: 52
+      original: "if condition\n    text \"Hello\"\nelse\n    text \"World\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0
+  - variables: []
+    parent: 0

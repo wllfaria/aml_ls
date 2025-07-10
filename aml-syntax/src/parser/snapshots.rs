@@ -35,6 +35,7 @@ impl<'ast> ToSnapshot<'ast> for AstNode {
                 location,
                 value: &content[location.to_range()],
             }),
+            AstNode::If(if_chain) => if_chain.into_snapshot(content),
         }
     }
 }
@@ -310,6 +311,117 @@ impl<'ast> ToSnapshot<'ast> for ErrorNode {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SnapshotIfChain<'ast> {
+    pub branches: Vec<SnapshotConditionalBranch<'ast>>,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for IfChain {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::If(SnapshotIfChain {
+            location: self.location,
+            original: &content[self.location.to_range()],
+            branches: self
+                .branches
+                .into_iter()
+                .map(|branch| branch.into_snapshot(content))
+                .collect(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum SnapshotConditionalBranch<'ast> {
+    If(SnapshotIf<'ast>),
+    ElseIf(SnapshotElseIf<'ast>),
+    Else(SnapshotElse<'ast>),
+}
+
+impl<'ast> ToSnapshot<'ast> for ConditionalBranch {
+    type Item = SnapshotConditionalBranch<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        match self {
+            ConditionalBranch::If(if_node) => {
+                SnapshotConditionalBranch::If(if_node.into_snapshot(content))
+            }
+            ConditionalBranch::ElseIf(keyword, if_node) => {
+                SnapshotConditionalBranch::ElseIf(SnapshotElseIf {
+                    location: keyword,
+                    if_node: if_node.into_snapshot(content),
+                    original: &content[keyword.to_range()],
+                })
+            }
+            ConditionalBranch::Else(else_node) => {
+                SnapshotConditionalBranch::Else(else_node.into_snapshot(content))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotIf<'ast> {
+    pub condition: SnapshotExpr<'ast>,
+    pub then: Vec<SnapshotAstNode<'ast>>,
+    pub keyword: Location,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for If {
+    type Item = SnapshotIf<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotIf {
+            keyword: self.keyword,
+            location: self.location,
+            condition: self.condition.into_snapshot(content),
+            original: &content[self.location.to_range()],
+            then: self
+                .then
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotElseIf<'ast> {
+    pub location: Location,
+    pub original: &'ast str,
+    pub if_node: SnapshotIf<'ast>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotElse<'ast> {
+    pub children: Vec<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub keyword: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for Else {
+    type Item = SnapshotElse<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotElse {
+            keyword: self.keyword,
+            location: self.location,
+            children: self
+                .children
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            original: &content[self.location.to_range()],
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct SnapshotAst<'ast> {
     pub nodes: Vec<SnapshotAstNode<'ast>>,
     pub variables: HashMap<String, Location>,
@@ -344,4 +456,5 @@ pub enum SnapshotAstNode<'ast> {
     Declaration(SnapshotDeclaration<'ast>),
     For(SnapshotFor<'ast>),
     Error(SnapshotError<'ast>),
+    If(SnapshotIfChain<'ast>),
 }

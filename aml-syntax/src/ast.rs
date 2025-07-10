@@ -24,6 +24,7 @@ pub trait AstVisitor<'ast> {
     fn visit_identifier(&mut self, _ident: Location, _node: &'ast AstNode) {}
     fn visit_attribute(&mut self, _attr: &'ast Attribute, _node: &'ast AstNode) {}
     fn visit_error(&mut self, _err: &'ast ErrorNode, _node: &'ast AstNode) {}
+    fn visit_if(&mut self, _if_chain: &'ast IfChain, _node: &'ast AstNode) {}
 }
 
 #[derive(Debug, Default)]
@@ -142,6 +143,45 @@ pub struct Attribute {
 }
 
 #[derive(Debug, PartialEq, PartialOrd)]
+pub struct IfChain {
+    pub branches: Vec<ConditionalBranch>,
+    pub location: Location,
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub enum ConditionalBranch {
+    If(If),
+    /// Location is the location of the `else` keyword, if keyword is encoded in the node
+    ElseIf(Location, If),
+    Else(Else),
+}
+
+impl ConditionalBranch {
+    pub fn location(&self) -> Location {
+        match self {
+            ConditionalBranch::If(if_node) => if_node.location,
+            ConditionalBranch::ElseIf(keyword, _) => *keyword,
+            ConditionalBranch::Else(else_node) => else_node.location,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub struct If {
+    pub condition: Expr,
+    pub then: Vec<AstNode>,
+    pub keyword: Location,
+    pub location: Location,
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub struct Else {
+    pub children: Vec<AstNode>,
+    pub location: Location,
+    pub keyword: Location,
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum AstNode {
     String(Location),
     Component(Component),
@@ -155,6 +195,7 @@ pub enum AstNode {
     Declaration(Declaration),
     For(For),
     Error(ErrorNode),
+    If(IfChain),
 }
 
 impl AstNode {
@@ -172,6 +213,7 @@ impl AstNode {
             AstNode::Error(error) => error.location,
             AstNode::Component(component) => component.location,
             AstNode::ComponentSlot(slot) => slot.location,
+            AstNode::If(if_chain) => if_chain.location,
         }
     }
 
@@ -205,6 +247,7 @@ impl AstNode {
             AstNode::Text(text) => visitor.visit_text(text, self),
             AstNode::Span(span) => visitor.visit_span(span, self),
             AstNode::For(for_loop) => visitor.visit_for(for_loop, self),
+            AstNode::If(if_chain) => visitor.visit_if(if_chain, self),
         }
     }
 }
