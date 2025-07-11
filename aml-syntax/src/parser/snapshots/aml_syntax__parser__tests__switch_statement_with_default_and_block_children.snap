@@ -1,0 +1,112 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - Switch:
+      branches:
+        - Case:
+            condition:
+              String:
+                value: "\"foo\""
+                location:
+                  start_byte: 27
+                  end_byte: 32
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"foo\""
+                        location:
+                          start_byte: 39
+                          end_byte: 44
+                  attributes: []
+                  children:
+                    - Error:
+                        token: Default
+                        location:
+                          start_byte: 49
+                          end_byte: 56
+                        original: default
+                  text: "text \"foo\"\n    default"
+                  location:
+                    start_byte: 34
+                    end_byte: 56
+                  keyword:
+                    start_byte: 34
+                    end_byte: 38
+            location:
+              start_byte: 22
+              end_byte: 56
+            keyword:
+              start_byte: 22
+              end_byte: 26
+            original: "case \"foo\": text \"foo\"\n    default"
+            has_colon: true
+        - Default:
+            children:
+              - Container:
+                  kind: VStack
+                  children:
+                    - Text:
+                        values:
+                          - String:
+                              value: "\"Hello\""
+                              location:
+                                start_byte: 89
+                                end_byte: 96
+                        attributes: []
+                        children: []
+                        text: "text \"Hello\""
+                        location:
+                          start_byte: 84
+                          end_byte: 96
+                        keyword:
+                          start_byte: 84
+                          end_byte: 88
+                    - Text:
+                        values:
+                          - String:
+                              value: "\"World!\""
+                              location:
+                                start_byte: 114
+                                end_byte: 122
+                        attributes: []
+                        children: []
+                        text: "text \"World!\""
+                        location:
+                          start_byte: 109
+                          end_byte: 122
+                        keyword:
+                          start_byte: 109
+                          end_byte: 113
+                  location:
+                    start_byte: 65
+                    end_byte: 122
+                  attributes: []
+                  original: "vstack\n            text \"Hello\"\n            text \"World!\""
+                  keyword:
+                    start_byte: 65
+                    end_byte: 71
+            location:
+              start_byte: 49
+              end_byte: 122
+            keyword:
+              start_byte: 49
+              end_byte: 56
+            original: "default\n        vstack\n            text \"Hello\"\n            text \"World!\""
+            has_colon: false
+      location:
+        start_byte: 1
+        end_byte: 122
+      original: "switch condition\n    case \"foo\": text \"foo\"\n    default\n        vstack\n            text \"Hello\"\n            text \"World!\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0
+  - variables: []
+    parent: 0
+  - variables: []
+    parent: 2

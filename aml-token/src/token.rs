@@ -43,6 +43,10 @@ impl TokenKind {
             _ => panic!("expected container, got: {self:?}"),
         }
     }
+
+    pub fn is_declaration(self) -> bool {
+        matches!(self, TokenKind::Decl | TokenKind::Global | TokenKind::Local)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Copy, PartialEq, PartialOrd)]

@@ -231,3 +231,60 @@ else
     let ast = get_ast(template);
     insta::assert_yaml_snapshot!(ast);
 }
+
+#[test]
+fn test_switch_statement() {
+    let template = r#"
+switch condition
+    case value: text "Hello"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_switch_statement_with_default() {
+    let template = r#"
+switch condition
+    case "foo": text "foo"
+    default: text "Hello"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_switch_statement_with_default_and_block_children() {
+    let template = r#"
+switch condition
+    case "foo": text "foo"
+    default
+        vstack
+            text "Hello"
+            text "World!"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_switch_statement_with_multiple_cases() {
+    let template = r#"
+switch condition
+    case "foo": text "foo"
+    case "bar": text "bar"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_switch_without_colon() {
+    let template = r#"
+switch condition
+    case "foo"  text "foo"
+    default: text "Hello"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}

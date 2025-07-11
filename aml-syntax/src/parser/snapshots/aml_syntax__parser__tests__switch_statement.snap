@@ -1,0 +1,47 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - Switch:
+      branches:
+        - Case:
+            condition:
+              Ident:
+                value: value
+                location:
+                  start_byte: 27
+                  end_byte: 32
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"Hello\""
+                        location:
+                          start_byte: 39
+                          end_byte: 46
+                  attributes: []
+                  children: []
+                  text: "text \"Hello\""
+                  location:
+                    start_byte: 34
+                    end_byte: 46
+                  keyword:
+                    start_byte: 34
+                    end_byte: 38
+            location:
+              start_byte: 22
+              end_byte: 46
+            keyword:
+              start_byte: 22
+              end_byte: 26
+            original: "case value: text \"Hello\""
+            has_colon: true
+      location:
+        start_byte: 1
+        end_byte: 46
+      original: "switch condition\n    case value: text \"Hello\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

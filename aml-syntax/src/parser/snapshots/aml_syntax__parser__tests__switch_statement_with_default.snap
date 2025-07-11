@@ -1,0 +1,81 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - Switch:
+      branches:
+        - Case:
+            condition:
+              String:
+                value: "\"foo\""
+                location:
+                  start_byte: 27
+                  end_byte: 32
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"foo\""
+                        location:
+                          start_byte: 39
+                          end_byte: 44
+                  attributes: []
+                  children:
+                    - Error:
+                        token: Default
+                        location:
+                          start_byte: 49
+                          end_byte: 56
+                        original: default
+                  text: "text \"foo\"\n    default"
+                  location:
+                    start_byte: 34
+                    end_byte: 56
+                  keyword:
+                    start_byte: 34
+                    end_byte: 38
+            location:
+              start_byte: 22
+              end_byte: 56
+            keyword:
+              start_byte: 22
+              end_byte: 26
+            original: "case \"foo\": text \"foo\"\n    default"
+            has_colon: true
+        - Default:
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"Hello\""
+                        location:
+                          start_byte: 63
+                          end_byte: 70
+                  attributes: []
+                  children: []
+                  text: "text \"Hello\""
+                  location:
+                    start_byte: 58
+                    end_byte: 70
+                  keyword:
+                    start_byte: 58
+                    end_byte: 62
+            location:
+              start_byte: 49
+              end_byte: 70
+            keyword:
+              start_byte: 49
+              end_byte: 56
+            original: "default: text \"Hello\""
+            has_colon: true
+      location:
+        start_byte: 1
+        end_byte: 70
+      original: "switch condition\n    case \"foo\": text \"foo\"\n    default: text \"Hello\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

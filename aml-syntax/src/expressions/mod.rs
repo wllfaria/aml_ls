@@ -1,7 +1,7 @@
 use aml_core::Location;
 use aml_token::{Operator, TokenKind, Tokens};
 
-use crate::ast::{ArrayIndex, Binary, Call, ErrorExpr, Expr, List, Map, PrimitiveExpr, Unary};
+use crate::ast::*;
 
 #[cfg(test)]
 mod tests;

@@ -1,10 +1,6 @@
-use aml_token::{Element, Operator, TokenKind, Tokens};
+use aml_token::{Element, Operator, Token, TokenKind, Tokens};
 
-use crate::ast::{
-    Ast, AstNode, Attribute, Attributes, Component, ComponentSlot, ConditionalBranch,
-    ContainerNode, Declaration, DeclarationKind, Else, ErrorNode, For, If, IfChain, PrimitiveNode,
-    Scope, Span, Text,
-};
+use crate::ast::*;
 use crate::expressions::parse_expression;
 
 #[cfg(test)]
@@ -124,7 +120,7 @@ impl Parser {
             TokenKind::ComponentSlot => self.parse_component_slot(),
             TokenKind::For => self.parse_for_loop(current_indent),
             TokenKind::If => self.parse_if_statement(current_indent),
-            TokenKind::Switch => todo!(),
+            TokenKind::Switch => self.parse_switch_statement(current_indent),
             TokenKind::With => todo!(),
             _ => AstNode::Error(ErrorNode {
                 token: token.kind(),
@@ -352,6 +348,112 @@ impl Parser {
             }
         }
         values
+    }
+
+    fn parse_switch_statement(&mut self, current_indent: usize) -> AstNode {
+        let keyword = self.tokens.next_token();
+        let start_location = keyword.location();
+        self.tokens.consume_indent();
+        let condition = parse_expression(&mut self.tokens);
+
+        let mut branches = vec![];
+        while let Some(branch) = self.parse_switch_branch(current_indent) {
+            branches.push(branch);
+        }
+
+        let last_branch_location = branches.last().map(|branch| branch.location());
+        let location = start_location.merge(last_branch_location.unwrap_or(condition.location()));
+        AstNode::Switch(SwitchChain { branches, location })
+    }
+
+    fn parse_switch_branch(&mut self, current_indent: usize) -> Option<SwitchBranch> {
+        self.tokens.consume_newlines();
+
+        match self.tokens.peek_skip_indent().kind() {
+            TokenKind::Case => Some(self.parse_case_branch(current_indent)),
+            TokenKind::Default => Some(self.parse_default_branch(current_indent)),
+            _ => None,
+        }
+    }
+
+    fn parse_case_branch(&mut self, current_indent: usize) -> SwitchBranch {
+        let keyword = self.tokens.next_token().location();
+        self.tokens.consume_indent();
+
+        let condition = parse_expression(&mut self.tokens);
+        self.tokens.consume_indent();
+
+        let colon_token = self.parse_optional_colon();
+        self.tokens.consume_indent();
+
+        let children = self.parse_switch_children(current_indent);
+        let location = self.calculate_switch_location(
+            keyword,
+            &children,
+            colon_token,
+            Some(condition.location()),
+        );
+
+        SwitchBranch::Case(SwitchCase {
+            condition,
+            children,
+            location,
+            keyword,
+            has_colon: colon_token.is_some(),
+        })
+    }
+
+    fn parse_default_branch(&mut self, current_indent: usize) -> SwitchBranch {
+        let keyword = self.tokens.next_token().location();
+        self.tokens.consume_indent();
+
+        let colon_token = self.parse_optional_colon();
+        self.tokens.consume_indent();
+
+        let children = self.parse_switch_children(current_indent);
+        let location = self.calculate_switch_location(keyword, &children, colon_token, None);
+
+        SwitchBranch::Default(SwitchDefault {
+            children,
+            keyword,
+            location,
+            has_colon: colon_token.is_some(),
+        })
+    }
+
+    fn parse_optional_colon(&mut self) -> Option<Token> {
+        match self.tokens.peek().kind() {
+            TokenKind::Operator(Operator::Colon) => Some(self.tokens.next_token()),
+            _ => None,
+        }
+    }
+
+    fn parse_switch_children(&mut self, current_indent: usize) -> Vec<AstNode> {
+        match self.tokens.peek_skip_indent().kind() {
+            kind if kind.is_declaration() => vec![self.parse_declaration()],
+            TokenKind::Newline => self.maybe_parse_block(current_indent),
+            TokenKind::Element(element) => {
+                vec![self.parse_element(element, current_indent)]
+            }
+            _ => vec![],
+        }
+    }
+
+    fn calculate_switch_location(
+        &self,
+        keyword: aml_core::Location,
+        children: &[AstNode],
+        colon_token: Option<aml_token::Token>,
+        fallback_location: Option<aml_core::Location>,
+    ) -> aml_core::Location {
+        let last_child_location = children.last().map(|node| node.location());
+
+        match (last_child_location, colon_token, fallback_location) {
+            (Some(location), _, _) => keyword.merge(location),
+            (_, Some(colon), _) => keyword.merge(colon.location()),
+            (None, None, Some(fallback)) => keyword.merge(fallback),
+            (None, None, None) => keyword,
+        }
     }
 
     fn parse_primitive(&mut self) -> AstNode {

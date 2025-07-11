@@ -36,6 +36,7 @@ impl<'ast> ToSnapshot<'ast> for AstNode {
                 value: &content[location.to_range()],
             }),
             AstNode::If(if_chain) => if_chain.into_snapshot(content),
+            AstNode::Switch(switch_chain) => switch_chain.into_snapshot(content),
         }
     }
 }
@@ -422,6 +423,102 @@ impl<'ast> ToSnapshot<'ast> for Else {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SnapshotSwitchChain<'ast> {
+    pub branches: Vec<SnapshotSwitchBranch<'ast>>,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for SwitchChain {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::Switch(SnapshotSwitchChain {
+            branches: self
+                .branches
+                .into_iter()
+                .map(|branch| branch.into_snapshot(content))
+                .collect(),
+            location: self.location,
+            original: &content[self.location.to_range()],
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum SnapshotSwitchBranch<'ast> {
+    Case(SnapshotSwitchCase<'ast>),
+    Default(SnapshotSwitchDefault<'ast>),
+}
+
+impl<'ast> ToSnapshot<'ast> for SwitchBranch {
+    type Item = SnapshotSwitchBranch<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        match self {
+            SwitchBranch::Case(case) => SnapshotSwitchBranch::Case(case.into_snapshot(content)),
+            SwitchBranch::Default(d) => SnapshotSwitchBranch::Default(d.into_snapshot(content)),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotSwitchCase<'ast> {
+    pub condition: SnapshotExpr<'ast>,
+    pub children: Vec<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub keyword: Location,
+    pub original: &'ast str,
+    pub has_colon: bool,
+}
+
+impl<'ast> ToSnapshot<'ast> for SwitchCase {
+    type Item = SnapshotSwitchCase<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotSwitchCase {
+            condition: self.condition.into_snapshot(content),
+            children: self
+                .children
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            location: self.location,
+            keyword: self.keyword,
+            has_colon: self.has_colon,
+            original: &content[self.location.to_range()],
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotSwitchDefault<'ast> {
+    pub children: Vec<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub keyword: Location,
+    pub original: &'ast str,
+    pub has_colon: bool,
+}
+
+impl<'ast> ToSnapshot<'ast> for SwitchDefault {
+    type Item = SnapshotSwitchDefault<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotSwitchDefault {
+            children: self
+                .children
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+            location: self.location,
+            keyword: self.keyword,
+            original: &content[self.location.to_range()],
+            has_colon: self.has_colon,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct SnapshotAst<'ast> {
     pub nodes: Vec<SnapshotAstNode<'ast>>,
     pub variables: HashMap<String, Location>,
@@ -457,4 +554,5 @@ pub enum SnapshotAstNode<'ast> {
     For(SnapshotFor<'ast>),
     Error(SnapshotError<'ast>),
     If(SnapshotIfChain<'ast>),
+    Switch(SnapshotSwitchChain<'ast>),
 }

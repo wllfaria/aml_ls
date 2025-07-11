@@ -102,6 +102,7 @@ impl HoverProvider {
             AstNode::ComponentSlot(_) => None,
             AstNode::For(_) => None,
             AstNode::If(_) => None,
+            AstNode::Switch(_) => None,
         }
     }
 

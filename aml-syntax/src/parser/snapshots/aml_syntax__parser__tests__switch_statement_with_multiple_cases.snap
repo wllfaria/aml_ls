@@ -1,0 +1,87 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - Switch:
+      branches:
+        - Case:
+            condition:
+              String:
+                value: "\"foo\""
+                location:
+                  start_byte: 27
+                  end_byte: 32
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"foo\""
+                        location:
+                          start_byte: 39
+                          end_byte: 44
+                  attributes: []
+                  children:
+                    - Error:
+                        token: Case
+                        location:
+                          start_byte: 49
+                          end_byte: 53
+                        original: case
+                  text: "text \"foo\"\n    case"
+                  location:
+                    start_byte: 34
+                    end_byte: 53
+                  keyword:
+                    start_byte: 34
+                    end_byte: 38
+            location:
+              start_byte: 22
+              end_byte: 53
+            keyword:
+              start_byte: 22
+              end_byte: 26
+            original: "case \"foo\": text \"foo\"\n    case"
+            has_colon: true
+        - Case:
+            condition:
+              String:
+                value: "\"bar\""
+                location:
+                  start_byte: 54
+                  end_byte: 59
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"bar\""
+                        location:
+                          start_byte: 66
+                          end_byte: 71
+                  attributes: []
+                  children: []
+                  text: "text \"bar\""
+                  location:
+                    start_byte: 61
+                    end_byte: 71
+                  keyword:
+                    start_byte: 61
+                    end_byte: 65
+            location:
+              start_byte: 49
+              end_byte: 71
+            keyword:
+              start_byte: 49
+              end_byte: 53
+            original: "case \"bar\": text \"bar\""
+            has_colon: true
+      location:
+        start_byte: 1
+        end_byte: 71
+      original: "switch condition\n    case \"foo\": text \"foo\"\n    case \"bar\": text \"bar\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

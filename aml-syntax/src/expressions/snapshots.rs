@@ -2,7 +2,7 @@ use aml_core::Location;
 use aml_token::{Operator, Primitive, TokenKind};
 use serde::Serialize;
 
-use crate::ast::{ArrayIndex, Binary, Call, ErrorExpr, Expr, List, Map, PrimitiveExpr, Unary};
+use crate::ast::*;
 use crate::parser::snapshots::ToSnapshot;
 
 impl<'ast> ToSnapshot<'ast> for Expr {

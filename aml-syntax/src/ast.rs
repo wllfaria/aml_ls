@@ -25,6 +25,7 @@ pub trait AstVisitor<'ast> {
     fn visit_attribute(&mut self, _attr: &'ast Attribute, _node: &'ast AstNode) {}
     fn visit_error(&mut self, _err: &'ast ErrorNode, _node: &'ast AstNode) {}
     fn visit_if(&mut self, _if_chain: &'ast IfChain, _node: &'ast AstNode) {}
+    fn visit_switch(&mut self, _switch_chain: &'ast SwitchChain, _node: &'ast AstNode) {}
 }
 
 #[derive(Debug, Default)]
@@ -182,6 +183,44 @@ pub struct Else {
 }
 
 #[derive(Debug, PartialEq, PartialOrd)]
+pub struct SwitchChain {
+    pub branches: Vec<SwitchBranch>,
+    pub location: Location,
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub enum SwitchBranch {
+    Case(SwitchCase),
+    Default(SwitchDefault),
+}
+
+impl SwitchBranch {
+    pub fn location(&self) -> Location {
+        match self {
+            SwitchBranch::Case(case) => case.location,
+            SwitchBranch::Default(default) => default.location,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub struct SwitchCase {
+    pub condition: Expr,
+    pub children: Vec<AstNode>,
+    pub location: Location,
+    pub keyword: Location,
+    pub has_colon: bool,
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub struct SwitchDefault {
+    pub children: Vec<AstNode>,
+    pub location: Location,
+    pub keyword: Location,
+    pub has_colon: bool,
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum AstNode {
     String(Location),
     Component(Component),
@@ -196,6 +235,7 @@ pub enum AstNode {
     For(For),
     Error(ErrorNode),
     If(IfChain),
+    Switch(SwitchChain),
 }
 
 impl AstNode {
@@ -214,6 +254,7 @@ impl AstNode {
             AstNode::Component(component) => component.location,
             AstNode::ComponentSlot(slot) => slot.location,
             AstNode::If(if_chain) => if_chain.location,
+            AstNode::Switch(switch_chain) => switch_chain.location,
         }
     }
 
@@ -248,6 +289,7 @@ impl AstNode {
             AstNode::Span(span) => visitor.visit_span(span, self),
             AstNode::For(for_loop) => visitor.visit_for(for_loop, self),
             AstNode::If(if_chain) => visitor.visit_if(if_chain, self),
+            AstNode::Switch(switch_chain) => visitor.visit_switch(switch_chain, self),
         }
     }
 }
