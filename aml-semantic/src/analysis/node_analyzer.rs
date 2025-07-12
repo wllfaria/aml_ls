@@ -1,14 +1,11 @@
-use std::collections::HashMap;
-
 use aml_syntax::ast::*;
 
 use crate::analysis::text_validation::TextValidator;
 use crate::diagnostics::{DiagnosticSeverity, Diagnostics};
 use crate::global_scope::GlobalScope;
 use crate::symbol_table::{SymbolTable, SymbolType};
-use crate::validation::attribute_schema::AttributeSchema;
+use crate::validation::attribute_schema::{AttributeValidator, ValidationCtx};
 use crate::validation::expression::ExpressionAnalyzer;
-use crate::validation::type_checker::TypeChecker;
 
 #[derive(Debug)]
 pub struct AnalysisCtx<'src> {
@@ -22,16 +19,16 @@ pub struct AnalysisCtx<'src> {
 #[derive(Debug)]
 pub struct NodeAnalyzer<'src> {
     content: &'src str,
-    expression_analyzer: ExpressionAnalyzer<'src>,
     text_validator: TextValidator<'src>,
+    expression_analyzer: ExpressionAnalyzer<'src>,
 }
 
 impl<'src> NodeAnalyzer<'src> {
     pub fn new(content: &'src str) -> Self {
         Self {
             content,
-            expression_analyzer: ExpressionAnalyzer::new(content),
             text_validator: TextValidator::new(content),
+            expression_analyzer: ExpressionAnalyzer::new(content),
         }
     }
 
@@ -39,10 +36,10 @@ impl<'src> NodeAnalyzer<'src> {
         match ctx.node {
             AstNode::Text(text) => self.analyze_text_element(text, ctx),
             AstNode::Span(span) => self.analyze_span_element(span, ctx),
+            AstNode::ComponentSlot(slot) => self.analyze_slot(slot, ctx),
             AstNode::Container(container) => self.analyze_container(container, ctx),
             AstNode::Component(component) => self.analyze_component(component, ctx),
             AstNode::Attribute(attribute) => self.analyze_attribute(attribute, ctx),
-            AstNode::ComponentSlot(slot) => self.analyze_slot(slot, ctx),
 
             AstNode::If(_) => {}
             AstNode::For(_) => {}
@@ -168,36 +165,34 @@ impl<'src> NodeAnalyzer<'src> {
         // nodes by the parser, so we only need to check if its an Error, and if not, its a valid
         // identifier.
         if let AstNode::Error(error) = attribute.name.as_ref() {
-            ctx.diagnostics.add_diagnostic(
+            return ctx.diagnostics.error(
                 attribute.name.location(),
                 format!("attribute names must be identifiers, got '{}'", error.token),
-                DiagnosticSeverity::Error,
             );
         }
 
         let attribute_type = self
             .expression_analyzer
             .analyze_expression(&attribute.value, ctx);
+
         let attribute_name = self
             .get_node_text(&attribute.name)
             .expect("attribute is guaranteed to be an identifier");
 
-        // Validate attributes against their expected types for specific node types
-        let expected_attributes = match parent {
-            AstNode::Text(text) => text.get_expected_attributes(),
-            AstNode::Span(span) => span.get_expected_attributes(),
-            _ => HashMap::new(),
+        let mut validation_ctx = ValidationCtx {
+            value_string: &self.content[attribute.value.location().to_range()],
+            attribute_name: &attribute_name,
+            value_type: &attribute_type,
+            diagnostics: ctx.diagnostics,
+            value_location: attribute.value.location(),
         };
 
-        if let Some(expected_type) = expected_attributes.get(attribute_name) {
-            TypeChecker::validate_attribute_type(
-                ctx.diagnostics,
-                attribute_name,
-                &attribute_type,
-                expected_type,
-                attribute.value.location(),
-            );
-        }
+        // Validate attributes against their expected types for specific node types
+        let expected_attributes = match parent {
+            AstNode::Text(text) => text.validate_attribute(&mut validation_ctx),
+            AstNode::Span(span) => span.validate_attribute(&mut validation_ctx),
+            _ => {}
+        };
     }
 
     fn analyze_slot(&self, slot: &ComponentSlot, ctx: &mut AnalysisCtx<'_>) {
@@ -212,9 +207,9 @@ impl<'src> NodeAnalyzer<'src> {
 
     fn declare_variable(&self, declaration: &Declaration, ctx: &mut AnalysisCtx<'src>) {
         let Some(name) = self.get_node_text(&declaration.name) else {
-            ctx.diagnostics
+            return ctx
+                .diagnostics
                 .error(declaration.name.location(), "invalid identifier name");
-            return;
         };
         let value_type = self
             .expression_analyzer

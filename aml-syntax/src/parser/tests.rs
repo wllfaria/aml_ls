@@ -318,3 +318,10 @@ with list as [1, 2, 3]
     let ast = get_ast(template);
     insta::assert_yaml_snapshot!(ast);
 }
+
+#[test]
+fn test_attribute_without_name() {
+    let template = "text [: #ff0000]";
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}

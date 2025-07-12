@@ -180,13 +180,43 @@ pub struct Hex {
 
 impl std::fmt::Display for Hex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+        write!(f, "{:02x}{:02x}{:02x}", self.r, self.g, self.b)
     }
 }
 
 impl From<(u8, u8, u8)> for Hex {
     fn from((r, g, b): (u8, u8, u8)) -> Self {
         Self { r, g, b }
+    }
+}
+
+impl TryFrom<&str> for Hex {
+    type Error = ();
+
+    fn try_from(hex: &str) -> Result<Self, Self::Error> {
+        if hex.is_empty() || !hex.starts_with("#") {
+            return Err(());
+        }
+
+        let hex = &hex[1..];
+        match hex.len() {
+            3 => {
+                let r = u8::from_str_radix(&hex[0..1], 16).map_err(|_| ())?;
+                let r = r << 4 | r;
+                let g = u8::from_str_radix(&hex[1..2], 16).map_err(|_| ())?;
+                let g = g << 4 | g;
+                let b = u8::from_str_radix(&hex[2..3], 16).map_err(|_| ())?;
+                let b = b << 4 | b;
+                Ok(Self::from((r, g, b)))
+            }
+            6 => {
+                let r = u8::from_str_radix(&hex[0..2], 16).map_err(|_| ())?;
+                let g = u8::from_str_radix(&hex[2..4], 16).map_err(|_| ())?;
+                let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| ())?;
+                Ok(Self::from((r, g, b)))
+            }
+            _ => Err(()),
+        }
     }
 }
 

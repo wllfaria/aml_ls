@@ -92,7 +92,6 @@ impl<'src> AstVisitor<'src> for GlobalCollector<'src> {
         assert!(decl.is_global());
 
         let name = decl.name.text(self.content).into();
-
         let expression_analyzer = &self.analyzer.expression_analyzer;
         let symbol_table = &mut self.analyzer.symbol_table;
         let global_scope = &mut self.analyzer.global_scope;

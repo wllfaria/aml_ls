@@ -6,9 +6,9 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct Symbol {
     pub name: String,
+    pub scope_id: usize,
     pub location: Location,
     pub symbol_type: SymbolType,
-    pub scope_id: usize,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -93,16 +93,16 @@ impl std::fmt::Display for ValueType {
 
 #[derive(Debug, Default)]
 pub struct SymbolTable {
-    symbols: HashMap<String, Vec<Symbol>>,
     scopes: Vec<Scope>,
     current_scope: usize,
+    symbols: HashMap<String, Vec<Symbol>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Scope {
     pub id: usize,
-    pub parent: Option<usize>,
     pub symbols: Vec<String>,
+    pub parent: Option<usize>,
 }
 
 impl SymbolTable {

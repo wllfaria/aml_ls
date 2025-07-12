@@ -1,0 +1,44 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - Text:
+      values: []
+      attributes:
+        - Attribute:
+            name:
+              Error:
+                token:
+                  Operator: Colon
+                location:
+                  start_byte: 6
+                  end_byte: 7
+                original: ":"
+            value:
+              Primitive:
+                value:
+                  Hex:
+                    r: 255
+                    g: 0
+                    b: 0
+                location:
+                  start_byte: 8
+                  end_byte: 15
+                original: "#ff0000"
+            location:
+              start_byte: 6
+              end_byte: 15
+            original: ": #ff0000"
+      children: []
+      text: "text [: #ff0000]"
+      location:
+        start_byte: 0
+        end_byte: 16
+      keyword:
+        start_byte: 0
+        end_byte: 4
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

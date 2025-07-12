@@ -126,6 +126,7 @@ impl HoverProvider {
                         "---",
                         "",
                         "A hexadecimal color value.",
+                        "",
                         &format!("rgb({}, {}, {})", hex.r, hex.g, hex.b),
                     ]
                     .join("\n");
