@@ -288,3 +288,33 @@ switch condition
     let ast = get_ast(template);
     insta::assert_yaml_snapshot!(ast);
 }
+
+#[test]
+fn test_with_statement() {
+    let template = r#"
+with list as [1, 2, 3]
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_with_statement_with_identifier() {
+    let template = r#"
+with list as my_list
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
+fn test_with_statement_with_children() {
+    let template = r#"
+with list as [1, 2, 3]
+    vstack
+        text "Hello"
+        text "World"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}

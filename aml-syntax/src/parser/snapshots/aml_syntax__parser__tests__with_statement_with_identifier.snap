@@ -1,0 +1,30 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - With:
+      binding:
+        Identifier:
+          value: list
+          location:
+            start_byte: 6
+            end_byte: 10
+      as_node:
+        start_byte: 11
+        end_byte: 13
+      expr:
+        Ident:
+          value: my_list
+          location:
+            start_byte: 14
+            end_byte: 21
+      children: []
+      location:
+        start_byte: 1
+        end_byte: 21
+      original: with list as my_list
+variables: {}
+scopes:
+  - variables: []
+    parent: ~

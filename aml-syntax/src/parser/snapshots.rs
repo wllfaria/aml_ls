@@ -37,6 +37,7 @@ impl<'ast> ToSnapshot<'ast> for AstNode {
             }),
             AstNode::If(if_chain) => if_chain.into_snapshot(content),
             AstNode::Switch(switch_chain) => switch_chain.into_snapshot(content),
+            AstNode::With(with) => with.into_snapshot(content),
         }
     }
 }
@@ -519,6 +520,35 @@ impl<'ast> ToSnapshot<'ast> for SwitchDefault {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SnapshotWith<'ast> {
+    pub binding: Box<SnapshotAstNode<'ast>>,
+    pub as_node: Option<Location>,
+    pub expr: Box<SnapshotExpr<'ast>>,
+    pub children: Vec<SnapshotAstNode<'ast>>,
+    pub location: Location,
+    pub original: &'ast str,
+}
+
+impl<'ast> ToSnapshot<'ast> for With {
+    type Item = SnapshotAstNode<'ast>;
+
+    fn into_snapshot(self, content: &'ast str) -> Self::Item {
+        SnapshotAstNode::With(SnapshotWith {
+            location: self.location,
+            original: &content[self.location.to_range()],
+            binding: Box::new(self.binding.into_snapshot(content)),
+            as_node: self.as_node,
+            expr: Box::new(self.expr.into_snapshot(content)),
+            children: self
+                .children
+                .into_iter()
+                .map(|n| n.into_snapshot(content))
+                .collect(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct SnapshotAst<'ast> {
     pub nodes: Vec<SnapshotAstNode<'ast>>,
     pub variables: HashMap<String, Location>,
@@ -555,4 +585,5 @@ pub enum SnapshotAstNode<'ast> {
     Error(SnapshotError<'ast>),
     If(SnapshotIfChain<'ast>),
     Switch(SnapshotSwitchChain<'ast>),
+    With(SnapshotWith<'ast>),
 }

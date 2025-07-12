@@ -121,7 +121,7 @@ impl Parser {
             TokenKind::For => self.parse_for_loop(current_indent),
             TokenKind::If => self.parse_if_statement(current_indent),
             TokenKind::Switch => self.parse_switch_statement(current_indent),
-            TokenKind::With => todo!(),
+            TokenKind::With => self.parse_with_statement(current_indent),
             _ => AstNode::Error(ErrorNode {
                 token: token.kind(),
                 location: token.location(),
@@ -267,7 +267,7 @@ impl Parser {
 
     fn parse_if_statement(&mut self, current_indent: usize) -> AstNode {
         let mut branches = vec![];
-        let mut start_location = self.tokens.peek().location();
+        let start_location = self.tokens.peek().location();
 
         while let Some(branch) = self.parse_conditional_branch(current_indent) {
             branches.push(branch);
@@ -326,6 +326,41 @@ impl Parser {
             location,
             condition,
         }
+    }
+
+    fn parse_with_statement(&mut self, current_indent: usize) -> AstNode {
+        let next = self.tokens.next_token();
+        assert!(next.kind() == TokenKind::With);
+        let keyword = next.location();
+
+        self.tokens.consume_indent();
+        let binding = self.parse_identifier();
+        self.tokens.consume_indent();
+
+        // TODO(wiru): if there is some syntax error here, and most likely in a lot of other
+        // places, specially when its an operator that initialized an expression, it will spin
+        // forever when trying to parse the expression. So this shit needs to be fixed. but how?
+
+        let as_node = match self.tokens.peek().kind() {
+            TokenKind::As => Some(self.tokens.next_token().location()),
+            _ => None,
+        };
+
+        self.tokens.consume_indent();
+        let expr = parse_expression(&mut self.tokens);
+
+        let children = self.maybe_parse_block(current_indent);
+
+        let last_child_location = children.last().map(|node| node.location());
+        let location = keyword.merge(last_child_location.unwrap_or(expr.location()));
+
+        AstNode::With(With {
+            binding: Box::new(binding),
+            as_node,
+            expr: Box::new(expr),
+            children,
+            location,
+        })
     }
 
     fn parse_values(&mut self) -> Vec<AstNode> {

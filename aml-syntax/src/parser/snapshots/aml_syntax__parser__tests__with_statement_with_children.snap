@@ -1,0 +1,99 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - With:
+      binding:
+        Identifier:
+          value: list
+          location:
+            start_byte: 6
+            end_byte: 10
+      as_node:
+        start_byte: 11
+        end_byte: 13
+      expr:
+        List:
+          items:
+            - Primitive:
+                value:
+                  Int: 1
+                location:
+                  start_byte: 15
+                  end_byte: 16
+                original: "1"
+            - Primitive:
+                value:
+                  Int: 2
+                location:
+                  start_byte: 18
+                  end_byte: 19
+                original: "2"
+            - Primitive:
+                value:
+                  Int: 3
+                location:
+                  start_byte: 21
+                  end_byte: 22
+                original: "3"
+          location:
+            start_byte: 14
+            end_byte: 23
+          original: "[1, 2, 3]"
+      children:
+        - Container:
+            kind: VStack
+            children:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"Hello\""
+                        location:
+                          start_byte: 48
+                          end_byte: 55
+                  attributes: []
+                  children: []
+                  text: "text \"Hello\""
+                  location:
+                    start_byte: 43
+                    end_byte: 55
+                  keyword:
+                    start_byte: 43
+                    end_byte: 47
+              - Text:
+                  values:
+                    - String:
+                        value: "\"World\""
+                        location:
+                          start_byte: 69
+                          end_byte: 76
+                  attributes: []
+                  children: []
+                  text: "text \"World\""
+                  location:
+                    start_byte: 64
+                    end_byte: 76
+                  keyword:
+                    start_byte: 64
+                    end_byte: 68
+            location:
+              start_byte: 28
+              end_byte: 76
+            attributes: []
+            original: "vstack\n        text \"Hello\"\n        text \"World\""
+            keyword:
+              start_byte: 28
+              end_byte: 34
+      location:
+        start_byte: 1
+        end_byte: 76
+      original: "with list as [1, 2, 3]\n    vstack\n        text \"Hello\"\n        text \"World\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0
+  - variables: []
+    parent: 1

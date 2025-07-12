@@ -120,6 +120,7 @@ impl<'src> SemanticAnalyzer<'src> {
             AstNode::For { .. } => {}
             AstNode::If { .. } => {}
             AstNode::Switch { .. } => {}
+            AstNode::With { .. } => {}
         }
     }
 

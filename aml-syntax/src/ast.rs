@@ -26,6 +26,7 @@ pub trait AstVisitor<'ast> {
     fn visit_error(&mut self, _err: &'ast ErrorNode, _node: &'ast AstNode) {}
     fn visit_if(&mut self, _if_chain: &'ast IfChain, _node: &'ast AstNode) {}
     fn visit_switch(&mut self, _switch_chain: &'ast SwitchChain, _node: &'ast AstNode) {}
+    fn visit_with(&mut self, _with: &'ast With, _node: &'ast AstNode) {}
 }
 
 #[derive(Debug, Default)]
@@ -158,6 +159,16 @@ pub enum ConditionalBranch {
 }
 
 impl ConditionalBranch {
+    pub fn has_error(&self) -> bool {
+        match self {
+            ConditionalBranch::If(if_node) => if_node.has_error(),
+            ConditionalBranch::ElseIf(_, if_node) => if_node.has_error(),
+            ConditionalBranch::Else(else_node) => else_node.has_error(),
+        }
+    }
+}
+
+impl ConditionalBranch {
     pub fn location(&self) -> Location {
         match self {
             ConditionalBranch::If(if_node) => if_node.location,
@@ -175,11 +186,23 @@ pub struct If {
     pub location: Location,
 }
 
+impl If {
+    pub fn has_error(&self) -> bool {
+        self.condition.has_error() || self.then.iter().any(|node| node.has_error())
+    }
+}
+
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct Else {
     pub children: Vec<AstNode>,
     pub location: Location,
     pub keyword: Location,
+}
+
+impl Else {
+    pub fn has_error(&self) -> bool {
+        self.children.iter().any(|node| node.has_error())
+    }
 }
 
 #[derive(Debug, PartialEq, PartialOrd)]
@@ -188,10 +211,25 @@ pub struct SwitchChain {
     pub location: Location,
 }
 
+impl SwitchChain {
+    pub fn has_error(&self) -> bool {
+        self.branches.iter().any(|branch| branch.has_error())
+    }
+}
+
 #[derive(Debug, PartialEq, PartialOrd)]
 pub enum SwitchBranch {
     Case(SwitchCase),
     Default(SwitchDefault),
+}
+
+impl SwitchBranch {
+    pub fn has_error(&self) -> bool {
+        match self {
+            SwitchBranch::Case(case) => case.has_error(),
+            SwitchBranch::Default(default) => default.has_error(),
+        }
+    }
 }
 
 impl SwitchBranch {
@@ -212,12 +250,33 @@ pub struct SwitchCase {
     pub has_colon: bool,
 }
 
+impl SwitchCase {
+    pub fn has_error(&self) -> bool {
+        self.condition.has_error() || self.children.iter().any(|node| node.has_error())
+    }
+}
+
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct SwitchDefault {
     pub children: Vec<AstNode>,
     pub location: Location,
     pub keyword: Location,
     pub has_colon: bool,
+}
+
+impl SwitchDefault {
+    pub fn has_error(&self) -> bool {
+        self.children.iter().any(|node| node.has_error())
+    }
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub struct With {
+    pub binding: Box<AstNode>,
+    pub as_node: Option<Location>,
+    pub expr: Box<Expr>,
+    pub children: Vec<AstNode>,
+    pub location: Location,
 }
 
 #[derive(Debug, PartialEq, PartialOrd)]
@@ -236,6 +295,7 @@ pub enum AstNode {
     Error(ErrorNode),
     If(IfChain),
     Switch(SwitchChain),
+    With(With),
 }
 
 impl AstNode {
@@ -255,6 +315,7 @@ impl AstNode {
             AstNode::ComponentSlot(slot) => slot.location,
             AstNode::If(if_chain) => if_chain.location,
             AstNode::Switch(switch_chain) => switch_chain.location,
+            AstNode::With(with) => with.location,
         }
     }
 
@@ -290,6 +351,76 @@ impl AstNode {
             AstNode::For(for_loop) => visitor.visit_for(for_loop, self),
             AstNode::If(if_chain) => visitor.visit_if(if_chain, self),
             AstNode::Switch(switch_chain) => visitor.visit_switch(switch_chain, self),
+            AstNode::With(with) => visitor.visit_with(with, self),
+        }
+    }
+
+    pub fn has_error(&self) -> bool {
+        match self {
+            AstNode::Error(_) => true,
+            AstNode::String(_) => false,
+            AstNode::Primitive(_) => false,
+            AstNode::Identifier(_) => false,
+            AstNode::Component(component) => {
+                let items_have_errors = component
+                    .attributes
+                    .items
+                    .iter()
+                    .any(|attr| attr.has_error());
+                component.name.has_error() || items_have_errors
+            }
+            AstNode::ComponentSlot(slot) => slot.name.has_error(),
+            AstNode::Container(container) => {
+                let attributes_have_errors = container
+                    .attributes
+                    .items
+                    .iter()
+                    .any(|attr| attr.has_error());
+                let children_have_errors = container.children.iter().any(|child| child.has_error());
+                attributes_have_errors || children_have_errors
+            }
+            AstNode::Text(text) => {
+                let attributes_have_errors =
+                    text.attributes.items.iter().any(|attr| attr.has_error());
+                let children_have_errors = text.children.iter().any(|child| child.has_error());
+                let values_have_errors = text.values.iter().any(|value| value.has_error());
+
+                attributes_have_errors || children_have_errors || values_have_errors
+            }
+            AstNode::Span(span) => {
+                let values_have_errors = span.values.iter().any(|value| value.has_error());
+                let attributes_have_errors =
+                    span.attributes.items.iter().any(|attr| attr.has_error());
+
+                attributes_have_errors || values_have_errors
+            }
+            AstNode::Attribute(attribute) => {
+                let name_have_errors = attribute.name.has_error();
+                let value_have_errors = attribute.value.has_error();
+                name_have_errors || value_have_errors
+            }
+            AstNode::Declaration(declaration) => {
+                let name_have_errors = declaration.name.has_error();
+                let value_have_errors = declaration.value.has_error();
+                name_have_errors || value_have_errors
+            }
+            AstNode::For(for_loop) => {
+                let binding_have_errors = for_loop.binding.has_error();
+                let value_have_errors = for_loop.value.has_error();
+                let children_have_errors = for_loop.children.iter().any(|child| child.has_error());
+                binding_have_errors || value_have_errors || children_have_errors
+            }
+            AstNode::If(if_chain) => if_chain.branches.iter().any(|branch| branch.has_error()),
+            AstNode::Switch(switch_chain) => switch_chain
+                .branches
+                .iter()
+                .any(|branch| branch.has_error()),
+            AstNode::With(with) => {
+                let binding_have_errors = with.binding.has_error();
+                let expr_have_errors = with.expr.has_error();
+                let children_have_errors = with.children.iter().any(|child| child.has_error());
+                binding_have_errors || expr_have_errors || children_have_errors
+            }
         }
     }
 }
