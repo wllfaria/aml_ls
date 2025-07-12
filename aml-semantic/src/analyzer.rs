@@ -39,10 +39,10 @@ pub struct SemanticAnalyzer<'src> {
 impl<'src> SemanticAnalyzer<'src> {
     pub fn new(content: &'src str, global_scope: &'src mut GlobalScope) -> SemanticAnalyzer<'src> {
         SemanticAnalyzer {
-            symbol_table: SymbolTable::new(),
-            diagnostics: Vec::new(),
             content,
             global_scope,
+            diagnostics: Vec::new(),
+            symbol_table: SymbolTable::new(),
         }
     }
 
@@ -89,38 +89,35 @@ impl<'src> SemanticAnalyzer<'src> {
                 &text.children,
                 text.location,
             ),
-            AstNode::Span(span) => self.analyze_span_element(&span.values, &span.attributes),
-            AstNode::Container(container) => container
-                .children
-                .iter()
-                .for_each(|child| self.analyze_node(child)),
+            AstNode::Container(container) => self.analyze_container(container),
             AstNode::Attribute(attribute) => _ = self.analyze_expression(&attribute.value),
-            AstNode::Identifier { .. } => {}
-            AstNode::String { .. } => {}
-            AstNode::Primitive { .. } => {}
-            AstNode::Error(error) => {
-                self.add_diagnostic(
-                    error.location,
-                    format!("unexpected token '{:?}'", error.token),
-                    DiagnosticSeverity::Error,
-                );
-            }
+            AstNode::Span(span) => self.analyze_span_element(&span.values, &span.attributes),
 
-            // Local declarations are collected as they are defined, although they are also
-            // hoisted to the root scope, they cannot be used before being declared
-            AstNode::Declaration(declaration) if declaration.is_local() => {
+            AstNode::Component(_) => {}
+            AstNode::ComponentSlot(_) => {}
+            AstNode::For(_) => {}
+            AstNode::If(_) => {}
+            AstNode::Switch(_) => {}
+            AstNode::With(_) => {}
+
+            AstNode::Declaration(declaration) if declaration.is_global() => {
+                // Global declarations are collected before analyzing as they can be used before
+                // being defined. Nothing to do here.
+            }
+            AstNode::Declaration(declaration) => {
+                // Local declarations are collected as they are defined and then hoisetd to the
+                // root scope. They cannot be used before being defined.
                 self.declare_variable(declaration);
             }
-            // Global declarations are collected before analyzing as they can be used before
-            // being defined.
-            AstNode::Declaration { .. } => {}
 
-            AstNode::Component { .. } => {}
-            AstNode::ComponentSlot { .. } => {}
-            AstNode::For { .. } => {}
-            AstNode::If { .. } => {}
-            AstNode::Switch { .. } => {}
-            AstNode::With { .. } => {}
+            AstNode::Identifier(_) => {}
+            AstNode::String(_) => {}
+            AstNode::Primitive(_) => {}
+            AstNode::Error(error) => self.add_diagnostic(
+                error.location,
+                format!("unexpected token '{:?}'", error.token),
+                DiagnosticSeverity::Error,
+            ),
         }
     }
 
@@ -131,23 +128,35 @@ impl<'src> SemanticAnalyzer<'src> {
         children: &[AstNode],
         location: Location,
     ) {
-        self.symbol_table.push_scope(None);
-        attributes
-            .items
-            .iter()
-            .for_each(|attr| self.analyze_node(attr));
         self.validate_text_element_value(value, location);
-        children.iter().for_each(|child| self.analyze_node(child));
-        self.symbol_table.pop_scope();
+
+        for attr in attributes.items.iter() {
+            self.analyze_node(attr);
+        }
+
+        for child in children.iter() {
+            self.analyze_node(child);
+        }
     }
 
     fn analyze_span_element(&mut self, values: &[AstNode], attributes: &Attributes) {
-        attributes
-            .items
-            .iter()
-            .for_each(|attr| self.analyze_node(attr));
+        for attr in attributes.items.iter() {
+            self.analyze_node(attr);
+        }
 
-        values.iter().for_each(|value| self.analyze_node(value));
+        for value in values.iter() {
+            self.analyze_node(value);
+        }
+    }
+
+    fn analyze_container(&mut self, container: &ContainerNode) {
+        for attr in container.attributes.items.iter() {
+            self.analyze_node(attr);
+        }
+
+        for child in container.children.iter() {
+            self.analyze_node(child);
+        }
     }
 
     fn validate_text_element_value(&mut self, values: &[AstNode], location: Location) {
@@ -161,10 +170,14 @@ impl<'src> SemanticAnalyzer<'src> {
 
         for value in values {
             match value {
-                AstNode::String { .. } => {}
-                AstNode::Primitive { .. } => {}
-                AstNode::Identifier { .. } => {
+                // Strings and Primitives are allowed on text elements, so nothing to do here
+                AstNode::String(_) | AstNode::Primitive(_) => {}
+                // Identifiers are allowed on text elements, but they follow some rules
+                AstNode::Identifier(_) => {
                     let name = self.get_node_text(value);
+
+                    // Theoretically, if the parser successfully parsed an identifier, it should be
+                    // valid. But take this as an assertion.
                     let Some(name) = name else {
                         self.add_diagnostic(
                             value.location(),
@@ -174,6 +187,9 @@ impl<'src> SemanticAnalyzer<'src> {
                         continue;
                     };
 
+                    // Users can shadow globals and locals, and if so, the local declaration has
+                    // priority. We check if the identifier exists on local scope first, and if so,
+                    // we can skip the global scope check.
                     if self.symbol_table.lookup_symbol(name).is_some() {
                         continue;
                     }
@@ -188,6 +204,8 @@ impl<'src> SemanticAnalyzer<'src> {
                         DiagnosticSeverity::Error,
                     );
                 }
+                // TODO(wiru): text elements should receive expressions as values, as there are
+                // cases where you can use them, like `text [] [1,2,3]`. Oh well...
                 _ => self.add_diagnostic(
                     location,
                     "Text element value must be a string literal".into(),
