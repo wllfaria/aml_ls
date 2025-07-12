@@ -56,9 +56,9 @@ impl<'src> NodeAnalyzer<'src> {
                 self.declare_variable(declaration, ctx);
             }
 
-            AstNode::Identifier(_) => {}
             AstNode::String(_) => {}
             AstNode::Primitive(_) => {}
+            AstNode::Identifier(_) => {}
             AstNode::Error(error) => ctx.diagnostics.add_diagnostic(
                 error.location,
                 format!("unexpected token '{:?}'", error.token),
@@ -118,7 +118,7 @@ impl<'src> NodeAnalyzer<'src> {
         for attr in container.attributes.items.iter() {
             self.analyze_node(&mut AnalysisCtx {
                 node: attr,
-                parent: None,
+                parent: Some(ctx.node),
                 symbol_table: ctx.symbol_table,
                 global_scope: ctx.global_scope,
                 diagnostics: ctx.diagnostics,
@@ -128,7 +128,7 @@ impl<'src> NodeAnalyzer<'src> {
         for child in container.children.iter() {
             self.analyze_node(&mut AnalysisCtx {
                 node: child,
-                parent: None,
+                parent: Some(ctx.node),
                 symbol_table: ctx.symbol_table,
                 global_scope: ctx.global_scope,
                 diagnostics: ctx.diagnostics,
@@ -191,6 +191,7 @@ impl<'src> NodeAnalyzer<'src> {
         let expected_attributes = match parent {
             AstNode::Text(text) => text.validate_attribute(&mut validation_ctx),
             AstNode::Span(span) => span.validate_attribute(&mut validation_ctx),
+            AstNode::Container(container) => container.validate_attribute(&mut validation_ctx),
             _ => {}
         };
     }
