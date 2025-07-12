@@ -36,6 +36,38 @@ pub enum TokenKind {
     String(Location),
 }
 
+impl std::fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenKind::In => write!(f, "in"),
+            TokenKind::If => write!(f, "if"),
+            TokenKind::As => write!(f, "as"),
+            TokenKind::Equal => write!(f, "="),
+            TokenKind::For => write!(f, "for"),
+            TokenKind::Eof => write!(f, "EOF"),
+            TokenKind::Decl => write!(f, "let"),
+            TokenKind::Else => write!(f, "else"),
+            TokenKind::Case => write!(f, "case"),
+            TokenKind::With => write!(f, "with"),
+            TokenKind::Component => write!(f, "@"),
+            TokenKind::Local => write!(f, "local"),
+            TokenKind::Global => write!(f, "global"),
+            TokenKind::Switch => write!(f, "switch"),
+            TokenKind::Error(_) => write!(f, "error"),
+            TokenKind::Default => write!(f, "default"),
+            TokenKind::ComponentSlot => write!(f, "$"),
+            TokenKind::Newline => write!(f, "newline"),
+            TokenKind::Indent(_) => write!(f, "indent"),
+            TokenKind::String(_) => write!(f, "string"),
+            TokenKind::Element(_) => write!(f, "element"),
+            TokenKind::Operator(_) => write!(f, "operator"),
+            TokenKind::Container(_) => write!(f, "container"),
+            TokenKind::Primitive(_) => write!(f, "primitive"),
+            TokenKind::Identifier(_) => write!(f, "identifier"),
+        }
+    }
+}
+
 impl TokenKind {
     pub fn expect_container(self) -> Container {
         match self {

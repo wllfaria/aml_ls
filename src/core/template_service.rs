@@ -136,10 +136,10 @@ struct TemplateCollector<'src> {
 }
 
 impl<'src> AstVisitor<'src> for TemplateCollector<'src> {
-    fn visit_globals(&mut self, decl: &Declaration, _: &AstNode) {
+    fn visit_globals(&mut self, decl: &Declaration, node: &AstNode) {
         let name = decl.name.text(self.content).into();
         let mut analyzer = SemanticAnalyzer::new(self.content, self.global_scope);
-        let symbol_type = SymbolType::Variable(analyzer.analyze_expression(&decl.value));
+        let symbol_type = SymbolType::Variable(analyzer.analyze_expression(&decl.value, node));
 
         self.global_scope.declare_global(GlobalSymbol {
             name,
