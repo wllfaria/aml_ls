@@ -17,16 +17,19 @@ impl<'ast> ToSnapshot<'ast> for AstNode {
 
     fn into_snapshot(self, content: &'ast str) -> Self::Item {
         match self {
-            AstNode::Component(component) => component.into_snapshot(content),
-            AstNode::ComponentSlot(component_slot) => component_slot.into_snapshot(content),
-            AstNode::Primitive(primitive_node) => primitive_node.into_snapshot(content),
-            AstNode::Container(container_node) => container_node.into_snapshot(content),
+            AstNode::With(with) => with.into_snapshot(content),
             AstNode::Text(text) => text.into_snapshot(content),
             AstNode::Span(span) => span.into_snapshot(content),
-            AstNode::Attribute(attribute) => attribute.into_snapshot(content),
-            AstNode::Declaration(declaration) => declaration.into_snapshot(content),
+            AstNode::If(if_chain) => if_chain.into_snapshot(content),
             AstNode::For(for_loop) => for_loop.into_snapshot(content),
             AstNode::Error(error_node) => error_node.into_snapshot(content),
+            AstNode::Attribute(attribute) => attribute.into_snapshot(content),
+            AstNode::Component(component) => component.into_snapshot(content),
+            AstNode::Switch(switch_chain) => switch_chain.into_snapshot(content),
+            AstNode::Declaration(declaration) => declaration.into_snapshot(content),
+            AstNode::Primitive(primitive_node) => primitive_node.into_snapshot(content),
+            AstNode::Container(container_node) => container_node.into_snapshot(content),
+            AstNode::ComponentSlot(component_slot) => component_slot.into_snapshot(content),
             AstNode::String(location) => SnapshotAstNode::String(SnapshotString {
                 location,
                 value: &content[location.to_range()],
@@ -35,9 +38,6 @@ impl<'ast> ToSnapshot<'ast> for AstNode {
                 location,
                 value: &content[location.to_range()],
             }),
-            AstNode::If(if_chain) => if_chain.into_snapshot(content),
-            AstNode::Switch(switch_chain) => switch_chain.into_snapshot(content),
-            AstNode::With(with) => with.into_snapshot(content),
         }
     }
 }

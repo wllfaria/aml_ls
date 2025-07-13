@@ -69,6 +69,7 @@ impl DiagnosticProvider {
             SemanticDiagnosticSeverity::Error => DiagnosticSeverity::ERROR,
             SemanticDiagnosticSeverity::Warning => DiagnosticSeverity::WARNING,
             SemanticDiagnosticSeverity::Info => DiagnosticSeverity::INFORMATION,
+            SemanticDiagnosticSeverity::Hint => DiagnosticSeverity::HINT,
         }
     }
 }

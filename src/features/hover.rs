@@ -166,7 +166,7 @@ impl HoverProvider {
         let content = &content[location.to_range()];
         let content = [
             "```aml",
-            &content.to_string(),
+            content,
             "```",
             "---",
             "A string value.",

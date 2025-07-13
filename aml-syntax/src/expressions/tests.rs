@@ -161,13 +161,11 @@ fn test_missing_left_operand() {
     insta::assert_yaml_snapshot!(parse(input));
 }
 
-// TODO: this test panics right now due to an assertion, but it should produce a nice error
-// node for error reporting
-// #[test]
-// fn test_mixed_brackets() {
-//     let input = "(1 + [2)";
-//     insta::assert_yaml_snapshot!(parse(input));
-// }
+#[test]
+fn test_mixed_brackets() {
+    let input = "(1 + [2)";
+    insta::assert_yaml_snapshot!(parse(input));
+}
 
 #[test]
 fn test_incomplete_binary_expression() {
@@ -199,7 +197,7 @@ fn test_incomplete_dot_lookup() {
     insta::assert_yaml_snapshot!(parse(input));
 }
 
-// TODO: this also hits an assertion error, which it shouldn't
+// TODO(wiru): this also hits an assertion error, which it shouldn't
 // #[test]
 // fn test_empty_array_index() {
 //     let input = "array[]";

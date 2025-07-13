@@ -313,9 +313,23 @@ impl Parser {
     fn parse_if_node(&mut self, current_indent: usize) -> If {
         let keyword = self.tokens.next_token().location();
         self.tokens.consume_indent();
-        let condition = parse_expression(&mut self.tokens);
-        let then = self.maybe_parse_block(current_indent);
+        let mut condition = parse_expression(&mut self.tokens);
 
+        if !matches!(self.tokens.peek_skip_indent().kind(), TokenKind::Newline) {
+            condition.add_error(ErrorExpr {
+                token: TokenKind::Operator(Operator::RParen),
+                location: condition.location(),
+            });
+
+            while !matches!(
+                self.tokens.peek_skip_indent().kind(),
+                TokenKind::Newline | TokenKind::Eof
+            ) {
+                self.tokens.consume();
+            }
+        }
+
+        let then = self.maybe_parse_block(current_indent);
         let then_location = then.last().map(|node| node.location());
         let condition_location = condition.location();
         let location = keyword.merge(then_location.unwrap_or(condition_location));
@@ -592,7 +606,7 @@ impl Parser {
             let name = self.parse_identifier();
             self.tokens.consume_all_whitespace();
 
-            // TODO: this is a syntax error if there is no colon
+            // TODO(wiru): this is a syntax error if there is no colon
             if self.tokens.peek().kind() == TokenKind::Operator(Operator::Colon) {
                 self.tokens.consume();
             }

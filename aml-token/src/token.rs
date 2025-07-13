@@ -31,7 +31,6 @@ pub enum TokenKind {
     Container(Container),
     Error(LexError),
     Primitive(Primitive),
-    // TODO: store the string
     Identifier(Location),
     String(Location),
 }

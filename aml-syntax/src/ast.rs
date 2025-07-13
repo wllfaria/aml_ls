@@ -443,6 +443,13 @@ pub struct Unary {
     pub op: Operator,
     pub expr: Box<Expr>,
     pub location: Location,
+    pub errors: Vec<ErrorExpr>,
+}
+
+impl Unary {
+    pub fn has_error(&self) -> bool {
+        self.expr.has_error() || !self.errors.is_empty()
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq, PartialOrd)]
@@ -451,6 +458,13 @@ pub struct Binary {
     pub rhs: Box<Expr>,
     pub op: Operator,
     pub location: Location,
+    pub errors: Vec<ErrorExpr>,
+}
+
+impl Binary {
+    pub fn has_error(&self) -> bool {
+        self.lhs.has_error() || self.rhs.has_error() || !self.errors.is_empty()
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq, PartialOrd)]
@@ -458,6 +472,7 @@ pub struct Call {
     pub fun: Box<Expr>,
     pub args: Vec<Expr>,
     pub location: Location,
+    pub errors: Vec<ErrorExpr>,
 }
 
 impl Call {
@@ -470,6 +485,21 @@ impl Call {
 pub struct PrimitiveExpr {
     pub value: Primitive,
     pub location: Location,
+    pub errors: Vec<ErrorExpr>,
+}
+
+impl PrimitiveExpr {
+    pub fn new(value: Primitive, location: Location) -> Self {
+        Self {
+            value,
+            location,
+            errors: vec![],
+        }
+    }
+
+    pub fn has_error(&self) -> bool {
+        !self.errors.is_empty()
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq, PartialOrd)]
@@ -477,25 +507,43 @@ pub struct ArrayIndex {
     pub lhs: Box<Expr>,
     pub index: Box<Expr>,
     pub location: Location,
+    pub errors: Vec<ErrorExpr>,
+}
+
+impl ArrayIndex {
+    pub fn has_error(&self) -> bool {
+        self.lhs.has_error() || self.index.has_error() || !self.errors.is_empty()
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct List {
     pub items: Vec<Expr>,
     pub location: Location,
+    pub errors: Vec<ErrorExpr>,
+}
+
+impl List {
+    pub fn has_error(&self) -> bool {
+        self.items.iter().any(|item| item.has_error()) || !self.errors.is_empty()
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq, PartialOrd)]
 pub struct Map {
     pub location: Location,
     pub items: Vec<(Expr, Expr)>,
+    pub errors: Vec<ErrorExpr>,
 }
 
 impl Map {
     pub fn has_error(&self) -> bool {
-        self.items
+        let items_errors = self
+            .items
             .iter()
-            .any(|(key, value)| key.has_error() || value.has_error())
+            .any(|(key, value)| key.has_error() || value.has_error());
+
+        items_errors || !self.errors.is_empty()
     }
 }
 
@@ -539,14 +587,14 @@ impl Expr {
         match self {
             Expr::Error(_) => true,
             Expr::Ident(_) => false,
-            Expr::Unary(unary) => unary.expr.has_error(),
-            Expr::Binary(binary) => binary.lhs.has_error() || binary.rhs.has_error(),
             Expr::String(_) => false,
+            Expr::Unary(unary) => unary.has_error(),
             Expr::Call(call) => call.has_error(),
-            Expr::Primitive(_) => false,
-            Expr::ArrayIndex(index) => index.lhs.has_error() || index.index.has_error(),
-            Expr::List(list) => list.items.iter().any(|item| item.has_error()),
+            Expr::Primitive(prim) => prim.has_error(),
+            Expr::ArrayIndex(index) => index.has_error(),
+            Expr::List(list) => list.has_error(),
             Expr::Map(map) => map.has_error(),
+            Expr::Binary(binary) => binary.has_error(),
         }
     }
 
@@ -565,6 +613,32 @@ impl Expr {
             Expr::List(list) => visitor.visit_list(list, self),
             Expr::Map(map) => visitor.visit_map(map, self),
             Expr::Error(error) => visitor.visit_error(error, self),
+        }
+    }
+
+    pub fn errors(&self) -> Option<&[ErrorExpr]> {
+        match self {
+            Expr::Map(map) => Some(&map.errors),
+            Expr::List(list) => Some(&list.errors),
+            Expr::Call(call) => Some(&call.errors),
+            Expr::Unary(unary) => Some(&unary.errors),
+            Expr::Primitive(prim) => Some(&prim.errors),
+            Expr::Binary(binary) => Some(&binary.errors),
+            Expr::ArrayIndex(array_index) => Some(&array_index.errors),
+            _ => None,
+        }
+    }
+
+    pub fn add_error(&mut self, error: ErrorExpr) {
+        match self {
+            Expr::Map(map) => map.errors.push(error),
+            Expr::List(list) => list.errors.push(error),
+            Expr::Call(call) => call.errors.push(error),
+            Expr::Unary(unary) => unary.errors.push(error),
+            Expr::Primitive(prim) => prim.errors.push(error),
+            Expr::Binary(binary) => binary.errors.push(error),
+            Expr::ArrayIndex(array_index) => array_index.errors.push(error),
+            _ => {}
         }
     }
 }

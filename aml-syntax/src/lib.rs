@@ -232,6 +232,7 @@ vstack [foreground: #ff0000]
             NodeFinderResult::Expr(&Expr::Primitive(PrimitiveExpr {
                 value: Primitive::Hex(Hex::from((0, 255, 0))),
                 location: Location::new(52, 59),
+                errors: vec![],
             }))
         );
 

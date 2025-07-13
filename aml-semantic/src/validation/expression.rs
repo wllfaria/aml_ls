@@ -17,6 +17,16 @@ impl<'src> ExpressionAnalyzer<'src> {
     }
 
     pub fn analyze_expression(&self, expr: &Expr, ctx: &mut AnalysisCtx<'_>) -> ValueType {
+        if let Some(errors) = expr.errors() {
+            // TODO(wiru): we need different kind of errors, not just "unexpected token"
+            for error in errors.iter() {
+                ctx.diagnostics.error(
+                    error.location,
+                    format!("unexpected token '{:?}'", error.token),
+                );
+            }
+        }
+
         match expr {
             Expr::String(_) => ValueType::String,
             Expr::Ident(location) => self.resolve_identifier_type(*location, ctx),
@@ -53,8 +63,9 @@ impl<'src> ExpressionAnalyzer<'src> {
                 self.validate_operand_types(
                     &lhs_type,
                     &rhs_type,
+                    binary.lhs.location(),
+                    binary.rhs.location(),
                     &expected_type,
-                    binary.op,
                     ctx.diagnostics,
                 );
                 expected_type
@@ -148,7 +159,7 @@ impl<'src> ExpressionAnalyzer<'src> {
     fn get_operator_result_type(&self, op: Operator) -> ValueType {
         match op {
             Operator::Plus | Operator::Minus | Operator::Mul | Operator::Div | Operator::Mod => {
-                // TODO: can't really determine if its an int or float
+                // TODO(wiru): can't really determine if its an int or float
                 ValueType::Int
             }
             Operator::EqualEqual
@@ -167,15 +178,22 @@ impl<'src> ExpressionAnalyzer<'src> {
         &self,
         lhs_type: &ValueType,
         rhs_type: &ValueType,
+        lhs_location: Location,
+        rhs_location: Location,
         expected_type: &ValueType,
-        _op: Operator,
-        _collector: &mut Diagnostics,
+        diagnostics: &mut Diagnostics,
     ) {
-        if lhs_type != expected_type && !matches!(lhs_type, ValueType::Unknown) {
-            // TODO(wiru): add location information and improve diagnostic message
+        if lhs_type != expected_type {
+            diagnostics.error(
+                lhs_location,
+                format!("Mismatched types. Expected `{expected_type}` found `{lhs_type}`"),
+            );
         }
-        if rhs_type != expected_type && !matches!(rhs_type, ValueType::Unknown) {
-            // TODO: add location information and improve diagnostic message
+        if rhs_type != expected_type {
+            diagnostics.error(
+                rhs_location,
+                format!("Mismatched types. Expected `{expected_type}` found `{rhs_type}`"),
+            );
         }
     }
 

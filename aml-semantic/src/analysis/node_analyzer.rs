@@ -1,5 +1,6 @@
 use aml_syntax::ast::*;
 
+use crate::ValueType;
 use crate::analysis::text_validation::TextValidator;
 use crate::diagnostics::{DiagnosticSeverity, Diagnostics};
 use crate::global_scope::GlobalScope;
@@ -40,8 +41,8 @@ impl<'src> NodeAnalyzer<'src> {
             AstNode::Container(container) => self.analyze_container(container, ctx),
             AstNode::Component(component) => self.analyze_component(component, ctx),
             AstNode::Attribute(attribute) => self.analyze_attribute(attribute, ctx),
+            AstNode::If(if_chain) => self.analyze_if_chain(if_chain, ctx),
 
-            AstNode::If(_) => {}
             AstNode::For(_) => {}
             AstNode::With(_) => {}
             AstNode::Switch(_) => {}
@@ -68,6 +69,17 @@ impl<'src> NodeAnalyzer<'src> {
     }
 
     fn analyze_text_element(&self, text: &Text, ctx: &mut AnalysisCtx<'_>) {
+        // Text elements can only be a direct child of a container, so if we have a parent, it
+        // should be a container.
+        if let Some(parent) = ctx.parent {
+            if !matches!(parent, AstNode::Container(_)) {
+                ctx.diagnostics.warning(
+                    text.location,
+                    "Text elements can only be direct children of a container. This element will be ignored",
+                );
+            }
+        }
+
         self.text_validator
             .validate_text_element_value(&text.values, text.location, ctx);
 
@@ -84,7 +96,7 @@ impl<'src> NodeAnalyzer<'src> {
         for child in text.children.iter() {
             self.analyze_node(&mut AnalysisCtx {
                 node: child,
-                parent: None,
+                parent: Some(ctx.node),
                 symbol_table: ctx.symbol_table,
                 global_scope: ctx.global_scope,
                 diagnostics: ctx.diagnostics,
@@ -93,6 +105,19 @@ impl<'src> NodeAnalyzer<'src> {
     }
 
     fn analyze_span_element(&self, span: &Span, ctx: &mut AnalysisCtx<'_>) {
+        // Span elements are ignored if they are not a direct child of a text element
+        if !matches!(ctx.parent, Some(AstNode::Text(_))) {
+            ctx.diagnostics.warning(
+                span.location,
+                "Span elements can only be a direct children of a text. This element will be ignored",
+            );
+
+            ctx.diagnostics.hint(
+                span.location,
+                "If you meant to style text within the same line, consider adding a text element with an empty string as the span parent",
+            );
+        }
+
         for attr in span.attributes.items.iter() {
             self.analyze_node(&mut AnalysisCtx {
                 node: attr,
@@ -137,18 +162,21 @@ impl<'src> NodeAnalyzer<'src> {
     }
 
     fn analyze_component(&self, component: &Component, ctx: &mut AnalysisCtx<'_>) {
-        self.analyze_node(&mut AnalysisCtx {
-            node: component.name.as_ref(),
-            parent: None,
-            symbol_table: ctx.symbol_table,
-            global_scope: ctx.global_scope,
-            diagnostics: ctx.diagnostics,
-        });
+        if component.name.has_error() {
+            return ctx.diagnostics.error(
+                component.name.location(),
+                "component names must be valid identifiers",
+            );
+        }
+
+        let name = self
+            .get_node_text(&component.name)
+            .expect("component name is guaranteed to be an identifier");
 
         for attr in component.attributes.items.iter() {
             self.analyze_node(&mut AnalysisCtx {
                 node: attr,
-                parent: None,
+                parent: Some(ctx.node),
                 symbol_table: ctx.symbol_table,
                 global_scope: ctx.global_scope,
                 diagnostics: ctx.diagnostics,
@@ -181,19 +209,50 @@ impl<'src> NodeAnalyzer<'src> {
 
         let mut validation_ctx = ValidationCtx {
             value_string: &self.content[attribute.value.location().to_range()],
-            attribute_name: &attribute_name,
+            attribute_name,
             value_type: &attribute_type,
             diagnostics: ctx.diagnostics,
             value_location: attribute.value.location(),
         };
 
         // Validate attributes against their expected types for specific node types
-        let expected_attributes = match parent {
+        match parent {
             AstNode::Text(text) => text.validate_attribute(&mut validation_ctx),
             AstNode::Span(span) => span.validate_attribute(&mut validation_ctx),
             AstNode::Container(container) => container.validate_attribute(&mut validation_ctx),
             _ => {}
-        };
+        }
+    }
+
+    fn analyze_if_chain(&self, if_chain: &IfChain, ctx: &mut AnalysisCtx<'_>) {
+        for branch in if_chain.branches.iter() {
+            match branch {
+                ConditionalBranch::If(if_stmt) => {
+                    let condition_type = self
+                        .expression_analyzer
+                        .analyze_expression(&if_stmt.condition, ctx);
+
+                    if !matches!(condition_type, ValueType::Boolean) {
+                        ctx.diagnostics.error(
+                            if_stmt.condition.location(),
+                            "If statement condition must evaluate to a boolean",
+                        );
+                    }
+
+                    for child in if_stmt.then.iter() {
+                        self.analyze_node(&mut AnalysisCtx {
+                            node: child,
+                            parent: Some(ctx.node),
+                            symbol_table: ctx.symbol_table,
+                            global_scope: ctx.global_scope,
+                            diagnostics: ctx.diagnostics,
+                        });
+                    }
+                }
+                ConditionalBranch::ElseIf(_, if_stmt) => {}
+                ConditionalBranch::Else(else_stmt) => {}
+            }
+        }
     }
 
     fn analyze_slot(&self, slot: &ComponentSlot, ctx: &mut AnalysisCtx<'_>) {

@@ -404,11 +404,12 @@ pub fn validate_int_value(ctx: &mut ValidationCtx<'_>) {
 
 fn emit_diagnostic(ctx: &mut ValidationCtx<'_>, rule_code: &str, args: &[&str]) {
     if let Some(rule) = VALIDATION_RULES.iter().find(|r| r.code == rule_code) {
-        let message = format_message(&rule.message_template, args);
+        let message = format_message(rule.message_template, args);
         match rule.severity {
             DiagnosticSeverity::Error => ctx.diagnostics.error(ctx.value_location, message),
             DiagnosticSeverity::Warning => ctx.diagnostics.warning(ctx.value_location, message),
             DiagnosticSeverity::Info => ctx.diagnostics.info(ctx.value_location, message),
+            DiagnosticSeverity::Hint => ctx.diagnostics.hint(ctx.value_location, message),
         }
     }
 }
@@ -416,7 +417,7 @@ fn emit_diagnostic(ctx: &mut ValidationCtx<'_>, rule_code: &str, args: &[&str]) 
 fn format_message(template: &str, args: &[&str]) -> String {
     let mut result = template.to_string();
     for (i, arg) in args.iter().enumerate() {
-        result = result.replace(&format!("{{{}}}", i), arg);
+        result = result.replace(&format!("{{{i}}}"), arg);
     }
     result
 }

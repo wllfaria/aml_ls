@@ -1,0 +1,117 @@
+---
+source: aml-syntax/src/parser/tests.rs
+expression: ast
+---
+nodes:
+  - If:
+      branches:
+        - If:
+            condition:
+              Binary:
+                lhs:
+                  Binary:
+                    lhs:
+                      Primitive:
+                        value:
+                          Bool: true
+                        location:
+                          start_byte: 5
+                          end_byte: 9
+                        original: "true"
+                    rhs:
+                      Primitive:
+                        value:
+                          Bool: true
+                        location:
+                          start_byte: 13
+                          end_byte: 17
+                        original: "true"
+                    op: And
+                    location:
+                      start_byte: 5
+                      end_byte: 17
+                    original: true && true
+                rhs:
+                  Binary:
+                    lhs:
+                      Primitive:
+                        value:
+                          Bool: true
+                        location:
+                          start_byte: 23
+                          end_byte: 27
+                        original: "true"
+                    rhs:
+                      Primitive:
+                        value:
+                          Bool: true
+                        location:
+                          start_byte: 31
+                          end_byte: 35
+                        original: "true"
+                    op: And
+                    location:
+                      start_byte: 23
+                      end_byte: 35
+                    original: true && true
+                op: And
+                location:
+                  start_byte: 4
+                  end_byte: 35
+                original: (true && true) && (true && true
+            then:
+              - Text:
+                  values:
+                    - String:
+                        value: "\"Hello, world!\""
+                        location:
+                          start_byte: 68
+                          end_byte: 83
+                  attributes:
+                    - Attribute:
+                        name:
+                          Identifier:
+                            value: foreground
+                            location:
+                              start_byte: 47
+                              end_byte: 57
+                        value:
+                          Primitive:
+                            value:
+                              Hex:
+                                r: 56
+                                g: 18
+                                b: 255
+                            location:
+                              start_byte: 59
+                              end_byte: 66
+                            original: "#3812ff"
+                        location:
+                          start_byte: 47
+                          end_byte: 66
+                        original: "foreground: #3812ff"
+                  children: []
+                  text: "text [foreground: #3812ff] \"Hello, world!\""
+                  location:
+                    start_byte: 41
+                    end_byte: 83
+                  keyword:
+                    start_byte: 41
+                    end_byte: 45
+            keyword:
+              start_byte: 1
+              end_byte: 3
+            location:
+              start_byte: 1
+              end_byte: 83
+            original: "if (true && true) && (true && true)\n    text [foreground: #3812ff] \"Hello, world!\""
+      location:
+        start_byte: 1
+        end_byte: 83
+      original: "if (true && true) && (true && true)\n    text [foreground: #3812ff] \"Hello, world!\""
+variables: {}
+scopes:
+  - variables: []
+    parent: ~
+  - variables: []
+    parent: 0

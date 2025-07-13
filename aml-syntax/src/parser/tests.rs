@@ -233,6 +233,16 @@ else
 }
 
 #[test]
+fn test_if_statement_with_multiple_conditions() {
+    let template = r#"
+if (true && true) && (true && true)
+    text [foreground: #3812ff] "Hello, world!"
+"#;
+    let ast = get_ast(template);
+    insta::assert_yaml_snapshot!(ast);
+}
+
+#[test]
 fn test_switch_statement() {
     let template = r#"
 switch condition

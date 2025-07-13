@@ -1,0 +1,45 @@
+---
+source: aml-syntax/src/expressions/tests.rs
+expression: parse(input)
+---
+Binary:
+  lhs:
+    Primitive:
+      value:
+        Int: 1
+      location:
+        start_byte: 1
+        end_byte: 2
+      original: "1"
+  rhs:
+    List:
+      items:
+        - Primitive:
+            value:
+              Int: 2
+            location:
+              start_byte: 6
+              end_byte: 7
+            original: "2"
+        - Error:
+            token:
+              Operator: RParen
+            location:
+              start_byte: 7
+              end_byte: 8
+            original: )
+        - Error:
+            token: Eof
+            location:
+              start_byte: 7
+              end_byte: 8
+            original: )
+      location:
+        start_byte: 5
+        end_byte: 8
+      original: "[2)"
+  op: Plus
+  location:
+    start_byte: 1
+    end_byte: 8
+  original: "1 + [2)"

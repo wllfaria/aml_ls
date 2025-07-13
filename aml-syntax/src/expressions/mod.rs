@@ -33,7 +33,6 @@ fn get_precedence(op: Operator) -> u8 {
         | Operator::LessThanOrEqual => precedences::LOGICAL,
         Operator::EqualEqual | Operator::NotEqual => precedences::EQUALITY,
         Operator::Or | Operator::And | Operator::Either => precedences::CONDITIONAL,
-
         _ => precedences::INITIAL,
     }
 }
@@ -47,24 +46,24 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
     let location = next.location();
 
     let mut lhs = match next.kind() {
-        TokenKind::Operator(Operator::LBracket) => parse_collection(tokens, location),
+        TokenKind::String(location) => Expr::String(location),
+        TokenKind::Identifier(location) => Expr::Ident(location),
         TokenKind::Operator(Operator::LCurly) => parse_map(tokens, location),
+        TokenKind::Operator(Operator::LBracket) => parse_collection(tokens, location),
+        TokenKind::Operator(op @ Operator::Not) => parse_unary_expression(tokens, op, location),
+        TokenKind::Operator(op @ Operator::Minus) => parse_unary_expression(tokens, op, location),
+        TokenKind::Primitive(primitive) => Expr::Primitive(PrimitiveExpr::new(primitive, location)),
         TokenKind::Operator(Operator::LParen) => {
-            let lhs = parse_expression_inner(tokens, precedences::INITIAL);
-            assert!(matches!(
-                tokens.next_no_indent().kind(),
-                TokenKind::Operator(Operator::RParen)
-            ));
+            let mut lhs = parse_expression_inner(tokens, precedences::INITIAL);
+            match tokens.peek_skip_indent().kind() {
+                TokenKind::Operator(Operator::RParen) => _ = tokens.next_no_indent(),
+                _ => lhs.add_error(ErrorExpr {
+                    token: TokenKind::Operator(Operator::RParen),
+                    location: next.location(),
+                }),
+            };
             lhs
         }
-        TokenKind::Operator(op @ Operator::Minus) => parse_unary_expression(tokens, op, location),
-        TokenKind::Operator(op @ Operator::Not) => parse_unary_expression(tokens, op, location),
-        TokenKind::String(location) => Expr::String(location),
-        TokenKind::Primitive(primitive) => Expr::Primitive(PrimitiveExpr {
-            value: primitive,
-            location,
-        }),
-        TokenKind::Identifier(location) => Expr::Ident(location),
 
         // all of these are invalid
         TokenKind::Operator(Operator::RBracket)
@@ -168,6 +167,7 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
                     lhs: Box::new(lhs),
                     location: location.merge(next_token.location()),
                     index: Box::new(index),
+                    errors: vec![],
                 });
 
                 continue;
@@ -182,6 +182,7 @@ fn parse_expression_inner(tokens: &mut Tokens, precedence: u8) -> Expr {
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
             location,
+            errors: vec![],
         });
     }
 
@@ -196,6 +197,7 @@ fn parse_unary_expression(tokens: &mut Tokens, operator: Operator, location: Loc
         op: operator,
         expr: Box::new(expr),
         location,
+        errors: vec![],
     })
 }
 
@@ -230,7 +232,11 @@ fn parse_collection(tokens: &mut Tokens, start_location: Location) -> Expr {
     };
 
     let location = start_location.merge(end_location);
-    Expr::List(List { items, location })
+    Expr::List(List {
+        items,
+        location,
+        errors: vec![],
+    })
 }
 
 fn parse_map(tokens: &mut Tokens, start_location: Location) -> Expr {
@@ -275,7 +281,11 @@ fn parse_map(tokens: &mut Tokens, start_location: Location) -> Expr {
 
     let location = start_location.merge(end_location);
 
-    Expr::Map(Map { items, location })
+    Expr::Map(Map {
+        items,
+        location,
+        errors: vec![],
+    })
 }
 
 fn parse_function(tokens: &mut Tokens, lhs: Expr, start_location: Location) -> Expr {
@@ -310,5 +320,6 @@ fn parse_function(tokens: &mut Tokens, lhs: Expr, start_location: Location) -> E
         fun: Box::new(lhs),
         args,
         location,
+        errors: vec![],
     })
 }

@@ -12,6 +12,7 @@ pub enum DiagnosticSeverity {
     Error,
     Warning,
     Info,
+    Hint,
 }
 
 #[derive(Debug, Default)]
@@ -45,5 +46,9 @@ impl Diagnostics {
 
     pub fn info(&mut self, location: Location, message: impl Into<String>) {
         self.add_diagnostic(location, message.into(), DiagnosticSeverity::Info);
+    }
+
+    pub fn hint(&mut self, location: Location, message: impl Into<String>) {
+        self.add_diagnostic(location, message.into(), DiagnosticSeverity::Hint);
     }
 }

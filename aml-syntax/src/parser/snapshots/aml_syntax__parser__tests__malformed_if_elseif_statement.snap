@@ -49,30 +49,14 @@ nodes:
                     start_byte: 38
                     end_byte: 39
                   original: "\n"
-              then:
-                - Text:
-                    values:
-                      - String:
-                          value: "\"World\""
-                          location:
-                            start_byte: 48
-                            end_byte: 55
-                    attributes: []
-                    children: []
-                    text: "text \"World\""
-                    location:
-                      start_byte: 43
-                      end_byte: 55
-                    keyword:
-                      start_byte: 43
-                      end_byte: 47
+              then: []
               keyword:
                 start_byte: 36
                 end_byte: 38
               location:
                 start_byte: 36
-                end_byte: 55
-              original: "if\n    text \"World\""
+                end_byte: 39
+              original: "if\n"
         - Else:
             children:
               - Text:
@@ -106,8 +90,6 @@ variables: {}
 scopes:
   - variables: []
     parent: ~
-  - variables: []
-    parent: 0
   - variables: []
     parent: 0
   - variables: []
